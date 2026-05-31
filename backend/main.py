@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from models import Employee, Shift, calculate_overall_rating
 from algorithm import generate_schedule
-from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_availability, get_availability, delete_availability, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee
+from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_availability, get_availability, delete_availability, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes
 import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
@@ -113,7 +113,14 @@ async def list_employees():
 async def create_shift(data: dict):
     role_id = data.get("role_id", None)
     shift_id = add_shift(data["day"], data["start_time"], data["end_time"], role_id)
-    return {"id": shift_id, "day": data["day"], "start_time": data["start_time"], "end_time": data["end_time"], "role_id": role_id}
+    # look up role name so frontend can display it immediately
+    role_name = None
+    if role_id:
+        roles = get_all_roles()
+        role = next((r for r in roles if r[0] == role_id), None)
+        if role:
+            role_name = role[1]
+    return {"id": shift_id, "day": data["day"], "start_time": data["start_time"], "end_time": data["end_time"], "role_id": role_id, "role_name": role_name}
 
 @app.get("/shifts")
 async def list_shifts():
@@ -125,7 +132,8 @@ async def list_shifts():
             "day": str(row[1]),
             "start_time": str(row[2]),
             "end_time": str(row[3]),
-            "role_id": row[4]
+            "role_id": row[4],
+            "role_name": row[5]   # added
         })
     return shifts
 
@@ -188,7 +196,7 @@ async def create_schedule(data: dict):
                 day=shift_date,
                 start_time=str(row[2]),
                 end_time=str(row[3]),
-                required_role=str(row[4]) if row[4] else None,
+                required_role=str(row[5]) if row[5] else None,  # row[5] is now role name
                 shift_id=row[0]
             )
             shifts.append(shift)
@@ -229,7 +237,9 @@ async def list_schedule():
             "employee": row[1],
             "day": str(row[2]),
             "start_time": str(row[3]),
-            "end_time": str(row[4])
+            "end_time": str(row[4]),
+            "role": row[5],        # role name, can be None
+            "shift_id": row[6]     # actual shift id for trade requests
         })
     return schedule
 
@@ -284,3 +294,124 @@ async def remove_shift(shift_id: int):
 async def check_user_by_employee(employee_id: int):
     user = get_user_by_employee_id(employee_id)
     return {"exists": user is not None}
+
+@app.post("/trades")
+async def request_trade(data: dict):
+    skip_employee = data.get("skip_employee_approval", False)
+    trade_id = create_shift_trade(
+        data["requester_id"],
+        data["shift_id"],
+        data.get("offered_shift_id", None)
+    )
+    # if role mismatch, auto-approve employee step so it goes straight to manager
+    if skip_employee:
+        update_trade_employee_status(trade_id, 'approved')
+    return {"id": trade_id, "status": "pending"}
+
+@app.get("/trades")
+async def list_trades():
+    rows = get_pending_trades()
+    trades = []
+    for row in rows:
+        trades.append({
+            "id": row[0],
+            "requester_name": row[1],
+            "requester_id": row[2],
+            "shift_id": row[3],
+            "day": str(row[4]),
+            "start_time": str(row[5]),
+            "end_time": str(row[6]),
+            "current_employee_name": row[7],
+            "offered_shift_id": row[8],
+            "employee_status": row[9],
+            "manager_status": row[10]
+        })
+    return trades
+
+@app.put("/trades/{trade_id}/employee")
+async def respond_trade_employee(trade_id: int, data: dict):
+    update_trade_employee_status(trade_id, data["status"])
+    return {"message": "Trade updated"}
+
+@app.put("/trades/{trade_id}/manager")
+async def respond_trade_manager(trade_id: int, data: dict):
+    update_trade_manager_status(trade_id, data["status"])
+    return {"message": "Trade updated"}
+
+@app.get("/trades/employee/{employee_id}")
+async def list_trades_for_employee(employee_id: int):
+    rows = get_trades_for_employee(employee_id)
+    trades = []
+    for row in rows:
+        trades.append({
+            "id": row[0],
+            "requester_name": row[1],
+            "day": str(row[2]),
+            "start_time": str(row[3]),
+            "end_time": str(row[4]),
+            "employee_status": row[5],
+            "manager_status": row[6]
+        })
+    return trades
+
+@app.get("/trades/hours-check")
+async def check_hours(employee_id: int, shift_id: int):
+    # get the shift's date to determine the week
+    shift_rows = get_all_shifts()
+    shift = next((r for r in shift_rows if r[0] == shift_id), None)
+    if not shift:
+        return {"error": "Shift not found"}
+    
+    shift_date = str(shift[1])
+    # get monday and sunday of that week
+    from datetime import datetime, timedelta
+    d = datetime.strptime(shift_date, "%Y-%m-%d")
+    day = d.weekday()  # 0=Monday
+    monday = d - timedelta(days=day)
+    sunday = monday + timedelta(days=6)
+    
+    current_hours = get_employee_weekly_hours(
+        employee_id,
+        monday.strftime("%Y-%m-%d"),
+        sunday.strftime("%Y-%m-%d")
+    )
+    
+    # calculate the requested shift's duration
+    shift_duration = (
+        datetime.strptime(str(shift[3]), "%H:%M:%S") - 
+        datetime.strptime(str(shift[2]), "%H:%M:%S")
+    ).seconds / 3600
+    
+    # get employee's desired hours
+    emp_rows = get_all_employees()
+    emp = next((r for r in emp_rows if r[0] == employee_id), None)
+    desired_hours = emp[2] if emp else 40
+
+    projected_hours = current_hours + shift_duration
+
+    return {
+        "current_hours": current_hours,
+        "shift_hours": shift_duration,
+        "projected_hours": projected_hours,
+        "desired_hours": desired_hours,
+        "over_limit": projected_hours > desired_hours
+    }
+
+@app.get("/schedule/unassigned")
+async def list_unassigned_shifts(start_date: str, end_date: str):
+    rows = get_unassigned_shifts(start_date, end_date)
+    result = []
+    for row in rows:
+        shift_id = row[0]
+        substitutes = get_potential_substitutes(shift_id)
+        result.append({
+            "shift_id": shift_id,
+            "day": str(row[1]),
+            "start_time": str(row[2]),
+            "end_time": str(row[3]),
+            "required_role": row[4],
+            "potential_substitutes": [
+                {"id": s[0], "name": s[1]} for s in substitutes
+            ]
+        })
+    return result

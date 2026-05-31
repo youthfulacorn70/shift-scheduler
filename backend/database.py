@@ -48,7 +48,11 @@ def add_shift(day, start_time, end_time, role_id=None):
 def get_all_shifts():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, day, start_time, end_time, role_id FROM shifts;")
+    cursor.execute("""
+        SELECT shifts.id, shifts.day, shifts.start_time, shifts.end_time, shifts.role_id, roles.name
+        FROM shifts
+        LEFT JOIN roles ON shifts.role_id = roles.id;
+    """)
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -96,10 +100,11 @@ def get_schedule():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT schedule.id, employees.name, shifts.day, shifts.start_time, shifts.end_time
+        SELECT schedule.id, employees.name, shifts.day, shifts.start_time, shifts.end_time, roles.name, shifts.id
         FROM schedule
         JOIN employees ON schedule.employee_id = employees.id
-        JOIN shifts ON schedule.shift_id = shifts.id;
+        JOIN shifts ON schedule.shift_id = shifts.id
+        LEFT JOIN roles ON shifts.role_id = roles.id;
     """)
     rows = cursor.fetchall()
     cursor.close()
@@ -303,6 +308,149 @@ def get_schedule_by_employee(employee_id: int):
         JOIN shifts ON schedule.shift_id = shifts.id
         WHERE schedule.employee_id = %s;
     """, (employee_id,))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+def create_shift_trade(requester_id: int, shift_id: int, offered_shift_id=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO shift_trades (requester_id, shift_id, offered_shift_id) VALUES (%s, %s, %s) RETURNING id;",
+        (requester_id, shift_id, offered_shift_id)
+    )
+    trade_id = cursor.fetchone()[0]
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return trade_id
+
+def get_pending_trades():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            shift_trades.id,
+            requester.name AS requester_name,
+            shift_trades.requester_id,
+            shifts.id AS shift_id,
+            shifts.day,
+            shifts.start_time,
+            shifts.end_time,
+            current_employee.name AS current_employee_name,
+            shift_trades.offered_shift_id,
+            shift_trades.employee_status,
+            shift_trades.manager_status,
+            shift_trades.created_at
+        FROM shift_trades
+        JOIN employees AS requester ON shift_trades.requester_id = requester.id
+        JOIN shifts ON shift_trades.shift_id = shifts.id
+        JOIN schedule ON schedule.shift_id = shifts.id
+        JOIN employees AS current_employee ON schedule.employee_id = current_employee.id
+        WHERE shift_trades.employee_status != 'denied'
+        AND shift_trades.manager_status != 'denied'
+        ORDER BY shift_trades.created_at DESC;
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+def update_trade_employee_status(trade_id: int, status: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE shift_trades SET employee_status = %s WHERE id = %s;",
+        (status, trade_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def update_trade_manager_status(trade_id: int, status: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE shift_trades SET manager_status = %s WHERE id = %s;",
+        (status, trade_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def get_trades_for_employee(employee_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            shift_trades.id,
+            requester.name AS requester_name,
+            shifts.day,
+            shifts.start_time,
+            shifts.end_time,
+            shift_trades.employee_status,
+            shift_trades.manager_status
+        FROM shift_trades
+        JOIN employees AS requester ON shift_trades.requester_id = requester.id
+        JOIN shifts ON shift_trades.shift_id = shifts.id
+        JOIN schedule ON schedule.shift_id = shifts.id
+        WHERE schedule.employee_id = %s
+        AND shift_trades.employee_status = 'pending'
+        ORDER BY shift_trades.created_at DESC;
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+def get_employee_weekly_hours(employee_id: int, start_date: str, end_date: str) -> float:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT SUM(
+            EXTRACT(EPOCH FROM (shifts.end_time - shifts.start_time)) / 3600
+        )
+        FROM schedule
+        JOIN shifts ON schedule.shift_id = shifts.id
+        WHERE schedule.employee_id = %s
+        AND shifts.day >= %s AND shifts.day <= %s;
+    """, (employee_id, start_date, end_date))
+    result = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    return float(result) if result else 0.0
+
+def get_unassigned_shifts(start_date: str, end_date: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT shifts.id, shifts.day, shifts.start_time, shifts.end_time, roles.name
+        FROM shifts
+        LEFT JOIN roles ON shifts.role_id = roles.id
+        LEFT JOIN schedule ON schedule.shift_id = shifts.id
+        WHERE schedule.shift_id IS NULL
+        AND shifts.day >= %s AND shifts.day <= %s;
+    """, (start_date, end_date))
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+def get_potential_substitutes(shift_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DISTINCT employees.id, employees.name
+        FROM employees
+        JOIN employee_roles ON employee_roles.employee_id = employees.id
+        JOIN roles ON employee_roles.role_id = roles.id
+        JOIN shifts ON roles.id = shifts.role_id
+        JOIN availability ON availability.employee_id = employees.id
+        WHERE shifts.id = %s
+        AND TRIM(availability.day) = TO_CHAR(shifts.day, 'Day') 
+        ORDER BY employees.name;
+    """, (shift_id,))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
