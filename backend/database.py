@@ -448,10 +448,71 @@ def get_potential_substitutes(shift_id: int):
         JOIN shifts ON roles.id = shifts.role_id
         JOIN availability ON availability.employee_id = employees.id
         WHERE shifts.id = %s
-        AND TRIM(availability.day) = TO_CHAR(shifts.day, 'Day') 
+        AND availability.day = INITCAP(LOWER(TRIM(TO_CHAR(shifts.day, 'Day'))))
+        AND employees.id NOT IN (
+            SELECT schedule.employee_id
+            FROM schedule
+            JOIN shifts AS s2 ON schedule.shift_id = s2.id
+            WHERE s2.day = shifts.day
+        )
         ORDER BY employees.name;
     """, (shift_id,))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
     return rows
+
+def manually_assign_shift(shift_id: int, employee_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # remove any existing assignment for this shift first
+    cursor.execute("DELETE FROM schedule WHERE shift_id = %s;", (shift_id,))
+    # insert the new assignment
+    cursor.execute(
+        "INSERT INTO schedule (shift_id, employee_id) VALUES (%s, %s) RETURNING id;",
+        (shift_id, employee_id)
+    )
+    schedule_id = cursor.fetchone()[0]
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return schedule_id
+def remove_schedule_entry(schedule_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM schedule WHERE id = %s;", (schedule_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def get_role_usage(role_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # count how many employees have this role
+    cursor.execute(
+        "SELECT COUNT(*) FROM employee_roles WHERE role_id = %s;",
+        (role_id,)
+    )
+    employee_count = cursor.fetchone()[0]
+    # count how many shifts require this role
+    cursor.execute(
+        "SELECT COUNT(*) FROM shifts WHERE role_id = %s;",
+        (role_id,)
+    )
+    shift_count = cursor.fetchone()[0]
+    cursor.close()
+    conn.close()
+    return {"employee_count": employee_count, "shift_count": shift_count}
+
+def delete_role(role_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # remove role from all employees first
+    cursor.execute("DELETE FROM employee_roles WHERE role_id = %s;", (role_id,))
+    # remove role from all shifts
+    cursor.execute("UPDATE shifts SET role_id = NULL WHERE role_id = %s;", (role_id,))
+    # delete the role itself
+    cursor.execute("DELETE FROM roles WHERE id = %s;", (role_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
