@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from models import Employee, Shift, calculate_overall_rating
 from algorithm import generate_schedule
-from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_availability, get_availability, delete_availability, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role
+from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_availability, get_availability, delete_availability, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment
 import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
@@ -434,3 +434,8 @@ async def role_usage(role_id: int):
 async def remove_role(role_id: int):
     delete_role(role_id)
     return {"message": "Role deleted"}
+
+@app.get("/shifts/{shift_id}/assignment")
+async def get_assignment(shift_id: int):
+    employee_name = get_shift_assignment(shift_id)
+    return {"employee": employee_name}

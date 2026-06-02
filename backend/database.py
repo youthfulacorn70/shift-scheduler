@@ -383,22 +383,22 @@ def get_trades_for_employee(employee_id: int):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT 
-            shift_trades.id,
-            requester.name AS requester_name,
-            shifts.day,
-            shifts.start_time,
-            shifts.end_time,
-            shift_trades.employee_status,
-            shift_trades.manager_status
-        FROM shift_trades
-        JOIN employees AS requester ON shift_trades.requester_id = requester.id
-        JOIN shifts ON shift_trades.shift_id = shifts.id
-        JOIN schedule ON schedule.shift_id = shifts.id
-        WHERE schedule.employee_id = %s
-        AND shift_trades.employee_status = 'pending'
-        ORDER BY shift_trades.created_at DESC;
-    """)
+    SELECT 
+        shift_trades.id,
+        requester.name AS requester_name,
+        shifts.day,
+        shifts.start_time,
+        shifts.end_time,
+        shift_trades.employee_status,
+        shift_trades.manager_status
+    FROM shift_trades
+    JOIN employees AS requester ON shift_trades.requester_id = requester.id
+    JOIN shifts ON shift_trades.shift_id = shifts.id
+    JOIN schedule ON schedule.shift_id = shifts.id
+    WHERE schedule.employee_id = %s
+    AND shift_trades.employee_status = 'pending'
+    ORDER BY shift_trades.created_at DESC;
+""", (employee_id,))
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -516,3 +516,17 @@ def delete_role(role_id: int):
     conn.commit()
     cursor.close()
     conn.close()
+
+def get_shift_assignment(shift_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT employees.name
+        FROM schedule
+        JOIN employees ON schedule.employee_id = employees.id
+        WHERE schedule.shift_id = %s;
+    """, (shift_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row[0] if row else None
