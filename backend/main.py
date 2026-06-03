@@ -6,8 +6,12 @@ import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
+import os
+from dotenv import load_dotenv
 
-SECRET_KEY = "your-secret-key-change-this-later"
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 
