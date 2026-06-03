@@ -371,14 +371,50 @@ def update_trade_employee_status(trade_id: int, status: str):
 def update_trade_manager_status(trade_id: int, status: str):
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Step 1: update the manager status
     cursor.execute(
         "UPDATE shift_trades SET manager_status = %s WHERE id = %s;",
         (status, trade_id)
     )
+
+    # Step 2: check if both sides have approved — if so, do the swap
+    if status == "approved":
+        cursor.execute(
+            "SELECT requester_id, shift_id, offered_shift_id, employee_status FROM shift_trades WHERE id = %s;",
+            (trade_id,)
+        )
+        trade = cursor.fetchone()
+        requester_id = trade[0]       # the employee who requested the trade
+        shift_id = trade[1]           # the shift they want
+        offered_shift_id = trade[2]   # the shift they offered (can be None)
+        employee_status = trade[3]    # did the shift owner already approve?
+
+        if employee_status == "approved":
+            # Find who currently owns the requested shift
+            cursor.execute(
+                "SELECT employee_id FROM schedule WHERE shift_id = %s;",
+                (shift_id,)
+            )
+            current_owner = cursor.fetchone()[0]
+
+            # Give the requested shift to the requester
+            cursor.execute(
+                "UPDATE schedule SET employee_id = %s WHERE shift_id = %s;",
+                (requester_id, shift_id)
+            )
+
+            # If there was an offered shift, give it to the former owner
+            if offered_shift_id is not None:
+                cursor.execute(
+                    "UPDATE schedule SET employee_id = %s WHERE shift_id = %s;",
+                    (current_owner, offered_shift_id)
+                )
+
     conn.commit()
     cursor.close()
     conn.close()
-
+    
 def get_trades_for_employee(employee_id: int):
     conn = get_connection()
     cursor = conn.cursor()
