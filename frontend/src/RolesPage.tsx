@@ -1,3 +1,4 @@
+import { API_URL } from './config'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -19,13 +20,13 @@ function RolesPage({ theme = 'light' }: { theme?: string }) {
   const [usage, setUsage] = useState<RoleUsage | null>(null)
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/roles')
+    fetch(`${API_URL}/roles`)
       .then(res => res.json())
       .then(data => setRoles(data))
   }, [])
 
   const addRole = () => {
-    fetch('http://127.0.0.1:8000/roles', {
+    fetch(`${API_URL}/roles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })

@@ -1,3 +1,4 @@
+import { API_URL } from './config'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -85,16 +86,16 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   const [resetTriggerError, setResetTriggerError] = useState('')
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/employees')
+    fetch(`${API_URL}/employees`)
       .then(res => res.json())
       .then(data => setEmployees(data))
-    fetch('http://127.0.0.1:8000/roles')
+    fetch(`${API_URL}/roles`)
       .then(res => res.json())
       .then(data => setRoles(data))
   }, [])
 
   const addEmployee = () => {
-    fetch('http://127.0.0.1:8000/employees', {
+    fetch(`${API_URL}/employees`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, desired_hours: parseInt(desiredHours) })
@@ -162,7 +163,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   const addSpecificOverride = () => {
     if (!selectedEmp || !newOverrideDate) return
     setOverrideError('')
-    fetch('http://127.0.0.1:8000/availability/specific', {
+    fetch(`${API_URL}/availability/specific`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -191,7 +192,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
 
   const addRating = () => {
     const finalCategory = customCategory || category
-    fetch('http://127.0.0.1:8000/ratings', {
+    fetch(`${API_URL}/ratings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -213,7 +214,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
       setCreateLoginError(t('employees.usernamePasswordRequired'))
       return
     }
-    fetch('http://127.0.0.1:8000/auth/create-user', {
+    fetch(`${API_URL}/auth/create-user`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -238,7 +239,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
 
 const triggerPasswordReset = () => {
   setResetTriggerError('')
-  fetch('http://127.0.0.1:8000/auth/reset-request', {
+  fetch(`${API_URL}/auth/reset-request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ employee_id: selectedEmp?.id })
@@ -442,7 +443,7 @@ const triggerPasswordReset = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      fetch('http://127.0.0.1:8000/availability', {
+                      fetch(`${API_URL}/availability`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ employee_id: selectedEmp.id, days: availability })
@@ -540,13 +541,13 @@ const triggerPasswordReset = () => {
                     key={role.id}
                     onClick={() => {
                       if (hasRole) {
-                        fetch('http://127.0.0.1:8000/employee-roles', {
+                        fetch(`${API_URL}/employee-roles`, {
                           method: 'DELETE',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ employee_id: selectedEmp.id, role_id: role.id })
                         }).then(() => setEmployeeRoles(employeeRoles.filter(r => r.id !== role.id)))
                       } else {
-                        fetch('http://127.0.0.1:8000/employee-roles', {
+                        fetch(`${API_URL}/employee-roles`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ employee_id: selectedEmp.id, role_id: role.id })
@@ -612,7 +613,7 @@ const triggerPasswordReset = () => {
                     />
                     <button
                       onClick={() => {
-                        fetch('http://127.0.0.1:8000/auth/reset-password', {
+                        fetch(`${API_URL}/auth/reset-password`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ employee_id: selectedEmp?.id, new_password: resetPassword })

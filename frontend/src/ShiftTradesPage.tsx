@@ -1,3 +1,4 @@
+import { API_URL } from './config'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -42,7 +43,7 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
   const [myEmployeeName, setMyEmployeeName] = useState<string>('')
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/schedule')
+    fetch(`${API_URL}/schedule`)
       .then(res => res.json())
       .then(data => setSchedule(data))
 
@@ -70,7 +71,7 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
   }
 
   const requestTrade = (shift: ScheduleEntry, skipEmployeeApproval: boolean = false) => {
-    fetch('http://127.0.0.1:8000/trades', {
+    fetch(`${API_URL}/trades`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

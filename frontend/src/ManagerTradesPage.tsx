@@ -1,3 +1,4 @@
+import { API_URL } from './config'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -29,7 +30,7 @@ function ManagerTradesPage({ theme = 'light' }: { theme?: string }) {
   const [warnings, setWarnings] = useState<{[tradeId: number]: HoursWarning}>({})
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/trades')
+    fetch(`${API_URL}/trades`)
       .then(res => res.json())
       .then(async (data: Trade[]) => {
         setTrades(data)

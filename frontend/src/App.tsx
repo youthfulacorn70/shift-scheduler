@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { API_URL } from './config'
 import EmployeesPage from './EmployeesPage'
 import ShiftsPage from './ShiftsPage'
 import SchedulePage from './SchedulePage'
@@ -64,7 +65,7 @@ function App() {
   }
 
   const handleLogin = () => {
-  fetch('http://127.0.0.1:8000/auth/login', {
+  fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: loginUsername, password: loginPassword })
@@ -123,7 +124,7 @@ function App() {
     setResetError('Passwords do not match.')
     return
   }
-  fetch('http://127.0.0.1:8000/auth/reset-complete', {
+  fetch(`${API_URL}/auth/reset-complete`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: resetUsername, new_password: resetNewPassword })

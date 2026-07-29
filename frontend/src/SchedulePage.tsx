@@ -1,3 +1,4 @@
+import { API_URL } from './config'
 import { useState, useEffect } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
 import { useTranslation } from './i18n'
@@ -114,13 +115,13 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   }
 
   const fetchSchedule = () => {
-    fetch('http://127.0.0.1:8000/schedule')
+    fetch(`${API_URL}/schedule`)
       .then(res => res.json())
       .then(data => setSchedule(data))
   }
 
   const fetchConflicts = () => {
-    fetch('http://127.0.0.1:8000/schedule/conflicts')
+    fetch(`${API_URL}/schedule/conflicts`)
       .then(res => res.json())
       .then(data => setConflictIds(data.conflict_ids))
   }
@@ -168,7 +169,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
 }
 
   const doAssignInDay = (shift: DayShift, employee: AvailableEmployee) => {
-    fetch('http://127.0.0.1:8000/schedule/assign', {
+    fetch(`${API_URL}/schedule/assign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ shift_id: shift.shift_id, employee_id: employee.id })
@@ -211,13 +212,13 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   const generateSchedule = () => {
     const start = toDateString(selectedWeekStart)
     const end = toDateString(addDays(selectedWeekStart, 13))
-    fetch('http://127.0.0.1:8000/schedule', {
+    fetch(`${API_URL}/schedule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ start_date: start, end_date: end })
     })
       .then(res => res.json())
-      .then(() => fetch('http://127.0.0.1:8000/schedule'))
+      .then(() => fetch(`${API_URL}/schedule`))
       .then(res => res.json())
       .then(data => {
         setSchedule(data)
@@ -228,7 +229,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   }
 
   const assignShift = (shiftId: number, employeeId: number) => {
-    fetch('http://127.0.0.1:8000/schedule/assign', {
+    fetch(`${API_URL}/schedule/assign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ shift_id: shiftId, employee_id: employeeId })

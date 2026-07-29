@@ -1,3 +1,4 @@
+import { API_URL } from './config'
 import { useState, useEffect } from 'react'
 import { Repeat } from 'lucide-react'
 import { useTranslation } from './i18n'
@@ -60,13 +61,13 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
   const [activeTab, setActiveTab] = useState<'all' | 'templates'>('all')
 
   useEffect(() => {
-  fetch('http://127.0.0.1:8000/shifts')
+  fetch(`${API_URL}/shifts`)
     .then(res => res.json())
     .then(data => setShifts(data))
-  fetch('http://127.0.0.1:8000/roles')
+  fetch(`${API_URL}/roles`)
     .then(res => res.json())
     .then(data => setRoles(data))
-  fetch('http://127.0.0.1:8000/shift-templates')
+  fetch(`${API_URL}/shift-templates`)
     .then(res => res.json())
     .then(data => setTemplates(data))
 }, [])
@@ -80,7 +81,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
 
   const createRecurringShift = () => {
   setRecurringError('')
-  fetch('http://127.0.0.1:8000/shift-templates', {
+  fetch(`${API_URL}/shift-templates`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -96,8 +97,8 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
         setRecurringError(data.error)
         return
       }
-      fetch('http://127.0.0.1:8000/shift-templates').then(res => res.json()).then(setTemplates)
-      fetch('http://127.0.0.1:8000/shifts').then(res => res.json()).then(setShifts)
+      fetch(`${API_URL}/shift-templates`).then(res => res.json()).then(setTemplates)
+      fetch(`${API_URL}/shifts`).then(res => res.json()).then(setShifts)
       setShowRecurringModal(false)
       setRecurringStart('')
       setRecurringEnd('')
@@ -106,7 +107,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
 }
 
   const addShift = () => {
-    fetch('http://127.0.0.1:8000/shifts', {
+    fetch(`${API_URL}/shifts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ day, start_time: startTime, end_time: endTime, role_id: roleId })

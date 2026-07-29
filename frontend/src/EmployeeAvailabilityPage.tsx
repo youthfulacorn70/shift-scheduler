@@ -1,3 +1,4 @@
+import { API_URL } from './config'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -48,7 +49,7 @@ function EmployeeAvailabilityPage({ employeeId, theme = 'light' }: { employeeId:
   }
 
   const saveAvailability = () => {
-    fetch('http://127.0.0.1:8000/availability', {
+    fetch(`${API_URL}/availability`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ employee_id: employeeId, days: availability })
@@ -60,7 +61,7 @@ function EmployeeAvailabilityPage({ employeeId, theme = 'light' }: { employeeId:
   const addSpecificOverride = () => {
     if (!newOverrideDate) return
     setOverrideError('')
-    fetch('http://127.0.0.1:8000/availability/specific', {
+    fetch(`${API_URL}/availability/specific`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
