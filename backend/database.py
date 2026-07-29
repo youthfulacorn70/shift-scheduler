@@ -1,12 +1,13 @@
 import psycopg2
+import os
 
 def get_connection():
     conn = psycopg2.connect(
-        dbname="shift_schedule",
-        user="mattdou",
-        password="",
-        host="localhost",
-        port="5432"
+        dbname=os.getenv("PGDATABASE", "shift_schedule"),
+        user=os.getenv("PGUSER", "mattdou"),
+        password=os.getenv("PGPASSWORD", ""),
+        host=os.getenv("PGHOST", "localhost"),
+        port=os.getenv("PGPORT", "5432")
     )
     return conn
 
@@ -32,6 +33,36 @@ def get_all_employees():
     conn.close()
     return rows
 
+def get_employee_usage(employee_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT COUNT(*) FROM schedule WHERE employee_id = %s;",
+        (employee_id,)
+    )
+    shift_count = cursor.fetchone()[0]
+    cursor.execute(
+        "SELECT COUNT(*) FROM users WHERE employee_id = %s;",
+        (employee_id,)
+    )
+    has_login = cursor.fetchone()[0] > 0
+    cursor.close()
+    conn.close()
+    return {"shift_count": shift_count, "has_login": has_login}
+
+def delete_employee(employee_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM schedule WHERE employee_id = %s;", (employee_id,))
+    cursor.execute("DELETE FROM ratings WHERE employee_id = %s;", (employee_id,))
+    cursor.execute("DELETE FROM availability WHERE employee_id = %s;", (employee_id,))
+    cursor.execute("DELETE FROM employee_roles WHERE employee_id = %s;", (employee_id,))
+    cursor.execute("DELETE FROM users WHERE employee_id = %s;", (employee_id,))
+    cursor.execute("DELETE FROM employees WHERE id = %s;", (employee_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 def add_shift(day, start_time, end_time, role_id=None):
     conn = get_connection()
     cursor = conn.cursor()
@@ -49,9 +80,10 @@ def get_all_shifts():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT shifts.id, shifts.day, shifts.start_time, shifts.end_time, shifts.role_id, roles.name
+        SELECT shifts.id, shifts.day, shifts.start_time, shifts.end_time, shifts.role_id, roles.name, shifts.template_id
         FROM shifts
-        LEFT JOIN roles ON shifts.role_id = roles.id;
+        LEFT JOIN roles ON shifts.role_id = roles.id
+        ORDER BY shifts.day, shifts.start_time;
     """)
     rows = cursor.fetchall()
     cursor.close()
@@ -111,6 +143,71 @@ def get_schedule():
     conn.close()
     return rows
 
+def get_day_overview(date_str: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT 
+            shifts.id,
+            shifts.start_time,
+            shifts.end_time,
+            roles.name AS role_name,
+            employees.name AS assigned_employee,
+            schedule.id AS schedule_id,
+            schedule.employee_id AS assigned_employee_id
+        FROM shifts
+        LEFT JOIN roles ON shifts.role_id = roles.id
+        LEFT JOIN schedule ON schedule.shift_id = shifts.id
+        LEFT JOIN employees ON schedule.employee_id = employees.id
+        WHERE shifts.day = %s
+        ORDER BY shifts.start_time;
+    """, (date_str,))
+    shifts = []
+    for row in cursor.fetchall():
+        shifts.append({
+            "shift_id": row[0],
+            "start_time": str(row[1]),
+            "end_time": str(row[2]),
+            "role": row[3],
+            "assigned_employee": row[4],
+            "schedule_id": row[5],
+            "assigned_employee_id": row[6]
+        })
+
+    cursor.execute("SELECT id, name FROM employees ORDER BY name;")
+    all_employees = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    from datetime import datetime
+    day_name = datetime.strptime(date_str, "%Y-%m-%d").strftime("%A")
+
+    available_employees = []
+    for emp_id, emp_name in all_employees:
+        is_available = get_availability_for_date(emp_id, date_str, day_name)
+
+        conn2 = get_connection()
+        cursor2 = conn2.cursor()
+        cursor2.execute("""
+            SELECT roles.name FROM employee_roles
+            JOIN roles ON employee_roles.role_id = roles.id
+            WHERE employee_roles.employee_id = %s;
+        """, (emp_id,))
+        emp_roles = [r[0] for r in cursor2.fetchall()]
+        cursor2.close()
+        conn2.close()
+
+        available_employees.append({
+            "id": emp_id,
+            "name": emp_name,
+            "roles": emp_roles,
+            "available": is_available
+        })
+
+    return {"shifts": shifts, "available_employees": available_employees}
+
 def clear_schedule():
     conn = get_connection()
     cursor = conn.cursor()
@@ -119,39 +216,138 @@ def clear_schedule():
     cursor.close()
     conn.close()
 
-def add_availability(employee_id, day):
+# === AVAILABILITY — rewritten for recurring + specific-date support ===
+
+def add_recurring_availability(employee_id, day_name, status='available'):
+    """Adds or updates a recurring availability rule for a day of the week."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO availability (employee_id, day) VALUES (%s, %s);",
-        (employee_id, day)
+        "INSERT INTO availability (employee_id, type, day_name, status) VALUES (%s, 'recurring', %s, %s);",
+        (employee_id, day_name, status)
     )
     conn.commit()
     cursor.close()
     conn.close()
 
-def get_availability(employee_id):
+def add_specific_availability(employee_id, specific_date, status):
+    """Adds a one-off override for a specific date, e.g. unavailable this one Monday."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT day FROM availability WHERE employee_id = %s;",
+        "INSERT INTO availability (employee_id, type, specific_date, status) VALUES (%s, 'specific', %s, %s) RETURNING id;",
+        (employee_id, specific_date, status)
+    )
+    new_id = cursor.fetchone()[0]
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return new_id
+
+def get_availability(employee_id):
+    """Returns both recurring days and specific overrides for an employee, separated out."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT day_name FROM availability WHERE employee_id = %s AND type = 'recurring' AND status = 'available';",
         (employee_id,)
     )
+    recurring_days = [row[0] for row in cursor.fetchall()]
+
+    cursor.execute(
+        "SELECT id, specific_date, status FROM availability WHERE employee_id = %s AND type = 'specific' ORDER BY specific_date;",
+        (employee_id,)
+    )
+    specific_overrides = [
+        {"id": row[0], "date": str(row[1]), "status": row[2]}
+        for row in cursor.fetchall()
+    ]
+
+    cursor.close()
+    conn.close()
+    return {"recurring_days": recurring_days, "specific_overrides": specific_overrides}
+
+def delete_availability(employee_id):
+    """Wipes ALL recurring rules for an employee — used when saving a fresh set of checkboxes."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM availability WHERE employee_id = %s AND type = 'recurring';",
+        (employee_id,)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def delete_specific_availability(override_id):
+    """Removes a single specific-date override by its id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM availability WHERE id = %s AND type = 'specific';",
+        (override_id,)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def get_availability_for_date(employee_id, date_str, day_name):
+    """
+    Used by the scheduling algorithm. Checks for a specific override on this exact date first —
+    if found, that wins. Otherwise falls back to the recurring rule for this day of the week.
+    Returns True if available, False if not.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # specific override always wins if it exists
+    cursor.execute(
+        "SELECT status FROM availability WHERE employee_id = %s AND type = 'specific' AND specific_date = %s;",
+        (employee_id, date_str)
+    )
+    specific = cursor.fetchone()
+    if specific:
+        cursor.close()
+        conn.close()
+        return specific[0] == 'available'
+
+    # fall back to recurring rule
+    cursor.execute(
+        "SELECT status FROM availability WHERE employee_id = %s AND type = 'recurring' AND day_name = %s;",
+        (employee_id, day_name)
+    )
+    recurring = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    if recurring:
+        return recurring[0] == 'available'
+    return False  # no rule at all means unavailable by default
+
+def get_schedule_conflicts():
+    """
+    Returns a set of schedule entry IDs where the assigned employee
+    is marked unavailable for that shift's date.
+    Used to badge conflicts on the Schedule calendar.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT schedule.id, schedule.employee_id, shifts.day
+        FROM schedule
+        JOIN shifts ON schedule.shift_id = shifts.id;
+    """)
     rows = cursor.fetchall()
     cursor.close()
     conn.close()
-    return [row[0] for row in rows]
 
-def delete_availability(employee_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM availability WHERE employee_id = %s;",
-        (employee_id,)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
+    conflict_ids = set()
+    for schedule_id, employee_id, day in rows:
+        day_name = day.strftime('%A')
+        if not get_availability_for_date(employee_id, day, day_name):
+            conflict_ids.add(schedule_id)
+
+    return conflict_ids
 
 def add_role(name):
     conn = get_connection()
@@ -228,6 +424,18 @@ def update_shift(shift_id, day, start_time, end_time, role_id=None):
 def delete_shift(shift_id):
     conn = get_connection()
     cursor = conn.cursor()
+
+    # check if this shift came from a template — if so, record it as excluded
+    # so it doesn't get regenerated
+    cursor.execute("SELECT day, template_id FROM shifts WHERE id = %s;", (shift_id,))
+    row = cursor.fetchone()
+    if row and row[1] is not None:
+        day, template_id = row
+        cursor.execute(
+            "INSERT INTO template_exclusions (template_id, excluded_date) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
+            (template_id, day)
+        )
+
     cursor.execute("DELETE FROM schedule WHERE shift_id = %s;", (shift_id,))
     cursor.execute("DELETE FROM shifts WHERE id = %s;", (shift_id,))
     conn.commit()
@@ -273,6 +481,17 @@ def create_user(username, password_hash, role, employee_id=None):
     cursor.close()
     conn.close()
     return user_id
+
+def reset_user_password(employee_id, new_password_hash):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE users SET password_hash = %s WHERE employee_id = %s;",
+        (new_password_hash, employee_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 def get_user_by_username(username):
     conn = get_connection()
@@ -371,50 +590,40 @@ def update_trade_employee_status(trade_id: int, status: str):
 def update_trade_manager_status(trade_id: int, status: str):
     conn = get_connection()
     cursor = conn.cursor()
-
-    # Step 1: update the manager status
     cursor.execute(
         "UPDATE shift_trades SET manager_status = %s WHERE id = %s;",
         (status, trade_id)
     )
-
-    # Step 2: check if both sides have approved — if so, do the swap
     if status == "approved":
         cursor.execute(
             "SELECT requester_id, shift_id, offered_shift_id, employee_status FROM shift_trades WHERE id = %s;",
             (trade_id,)
         )
         trade = cursor.fetchone()
-        requester_id = trade[0]       # the employee who requested the trade
-        shift_id = trade[1]           # the shift they want
-        offered_shift_id = trade[2]   # the shift they offered (can be None)
-        employee_status = trade[3]    # did the shift owner already approve?
+        requester_id = trade[0]
+        shift_id = trade[1]
+        offered_shift_id = trade[2]
+        employee_status = trade[3]
 
         if employee_status == "approved":
-            # Find who currently owns the requested shift
             cursor.execute(
                 "SELECT employee_id FROM schedule WHERE shift_id = %s;",
                 (shift_id,)
             )
             current_owner = cursor.fetchone()[0]
-
-            # Give the requested shift to the requester
             cursor.execute(
                 "UPDATE schedule SET employee_id = %s WHERE shift_id = %s;",
                 (requester_id, shift_id)
             )
-
-            # If there was an offered shift, give it to the former owner
             if offered_shift_id is not None:
                 cursor.execute(
                     "UPDATE schedule SET employee_id = %s WHERE shift_id = %s;",
                     (current_owner, offered_shift_id)
                 )
-
     conn.commit()
     cursor.close()
     conn.close()
-    
+
 def get_trades_for_employee(employee_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -474,36 +683,45 @@ def get_unassigned_shifts(start_date: str, end_date: str):
     return rows
 
 def get_potential_substitutes(shift_id: int):
+    """
+    Updated to use get_availability_for_date logic inline via SQL —
+    checks specific override first, falls back to recurring.
+    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT DISTINCT employees.id, employees.name
+        SELECT DISTINCT employees.id, employees.name, shifts.day
         FROM employees
-        JOIN employee_roles ON employee_roles.employee_id = employees.id
-        JOIN roles ON employee_roles.role_id = roles.id
-        JOIN shifts ON roles.id = shifts.role_id
-        JOIN availability ON availability.employee_id = employees.id
-        WHERE shifts.id = %s
-        AND availability.day = INITCAP(LOWER(TRIM(TO_CHAR(shifts.day, 'Day'))))
+        JOIN shifts ON shifts.id = %s
+        LEFT JOIN employee_roles ON employee_roles.employee_id = employees.id
+        LEFT JOIN roles ON employee_roles.role_id = roles.id
+        WHERE (shifts.role_id IS NULL OR roles.id = shifts.role_id)
         AND employees.id NOT IN (
             SELECT schedule.employee_id
             FROM schedule
             JOIN shifts AS s2 ON schedule.shift_id = s2.id
             WHERE s2.day = shifts.day
-        )
-        ORDER BY employees.name;
+        );
     """, (shift_id,))
-    rows = cursor.fetchall()
+    candidates = cursor.fetchall()
     cursor.close()
     conn.close()
-    return rows
+
+    # filter candidates down to only those actually available on that date
+    day_name = None
+    result = []
+    for emp_id, emp_name, shift_day in candidates:
+        if day_name is None:
+            day_name = shift_day.strftime('%A')  # e.g. "Monday"
+        if get_availability_for_date(emp_id, str(shift_day), day_name):
+            result.append((emp_id, emp_name))
+
+    return result
 
 def manually_assign_shift(shift_id: int, employee_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    # remove any existing assignment for this shift first
     cursor.execute("DELETE FROM schedule WHERE shift_id = %s;", (shift_id,))
-    # insert the new assignment
     cursor.execute(
         "INSERT INTO schedule (shift_id, employee_id) VALUES (%s, %s) RETURNING id;",
         (shift_id, employee_id)
@@ -513,6 +731,7 @@ def manually_assign_shift(shift_id: int, employee_id: int):
     cursor.close()
     conn.close()
     return schedule_id
+
 def remove_schedule_entry(schedule_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -524,13 +743,11 @@ def remove_schedule_entry(schedule_id: int):
 def get_role_usage(role_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    # count how many employees have this role
     cursor.execute(
         "SELECT COUNT(*) FROM employee_roles WHERE role_id = %s;",
         (role_id,)
     )
     employee_count = cursor.fetchone()[0]
-    # count how many shifts require this role
     cursor.execute(
         "SELECT COUNT(*) FROM shifts WHERE role_id = %s;",
         (role_id,)
@@ -543,11 +760,8 @@ def get_role_usage(role_id: int):
 def delete_role(role_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    # remove role from all employees first
     cursor.execute("DELETE FROM employee_roles WHERE role_id = %s;", (role_id,))
-    # remove role from all shifts
     cursor.execute("UPDATE shifts SET role_id = NULL WHERE role_id = %s;", (role_id,))
-    # delete the role itself
     cursor.execute("DELETE FROM roles WHERE id = %s;", (role_id,))
     conn.commit()
     cursor.close()
@@ -566,3 +780,182 @@ def get_shift_assignment(shift_id: int):
     cursor.close()
     conn.close()
     return row[0] if row else None
+
+def create_password_reset(employee_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO password_resets (employee_id, expires_at, status) VALUES (%s, NOW() + INTERVAL '30 minutes', 'pending') RETURNING id;",
+        (employee_id,)
+    )
+    reset_id = cursor.fetchone()[0]
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return reset_id
+
+def check_pending_reset(username):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT password_resets.id
+        FROM password_resets
+        JOIN users ON users.employee_id = password_resets.employee_id
+        WHERE users.username = %s
+        AND password_resets.status = 'pending'
+        AND password_resets.expires_at > NOW()
+        ORDER BY password_resets.requested_at DESC
+        LIMIT 1;
+    """, (username,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return row[0] if row else None
+
+def complete_password_reset(username, new_password_hash):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # re-check eligibility server-side, never trust the earlier check alone
+    cursor.execute("""
+        SELECT password_resets.id, password_resets.employee_id
+        FROM password_resets
+        JOIN users ON users.employee_id = password_resets.employee_id
+        WHERE users.username = %s
+        AND password_resets.status = 'pending'
+        AND password_resets.expires_at > NOW()
+        ORDER BY password_resets.requested_at DESC
+        LIMIT 1;
+    """, (username,))
+    row = cursor.fetchone()
+
+    if not row:
+        cursor.close()
+        conn.close()
+        return False
+
+    reset_id, employee_id = row
+
+    cursor.execute(
+        "UPDATE users SET password_hash = %s WHERE employee_id = %s;",
+        (new_password_hash, employee_id)
+    )
+    cursor.execute(
+        "UPDATE password_resets SET status = 'used' WHERE id = %s;",
+        (reset_id,)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return True
+
+def create_shift_template(day_name, start_time, end_time, role_id=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # prevent creating an identical recurring shift twice
+    cursor.execute("""
+        SELECT id FROM shift_templates
+        WHERE day_name = %s AND start_time = %s AND end_time = %s
+        AND active = TRUE
+        AND (role_id = %s OR (role_id IS NULL AND %s IS NULL));
+    """, (day_name, start_time, end_time, role_id, role_id))
+    existing = cursor.fetchone()
+    if existing:
+        cursor.close()
+        conn.close()
+        return None  # signal duplicate — caller decides what to do
+
+    cursor.execute(
+        "INSERT INTO shift_templates (day_name, start_time, end_time, role_id) VALUES (%s, %s, %s, %s) RETURNING id;",
+        (day_name, start_time, end_time, role_id)
+    )
+    template_id = cursor.fetchone()[0]
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return template_id
+
+
+def generate_shifts_from_template(template_id, horizon_weeks=1):
+    """
+    Ensures shifts exist for this template out to `horizon_weeks` from today.
+    Only creates shifts for dates that don't already have one from this template
+    (so calling this repeatedly is always safe — it just fills in gaps).
+    """
+    from datetime import datetime, timedelta
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT day_name, start_time, end_time, role_id, active FROM shift_templates WHERE id = %s;",
+        (template_id,)
+    )
+    template = cursor.fetchone()
+    if not template or not template[4]:  # doesn't exist or inactive
+        cursor.close()
+        conn.close()
+        return []
+
+    day_name, start_time, end_time, role_id, active = template
+
+    day_name_to_weekday = {
+        'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3,
+        'Friday': 4, 'Saturday': 5, 'Sunday': 6
+    }
+    target_weekday = day_name_to_weekday[day_name]
+
+    today = datetime.utcnow().date()
+    horizon_end = today + timedelta(weeks=horizon_weeks)
+
+    # find all dates matching this day_name between today and horizon_end
+    dates_to_check = []
+    current = today
+    while current <= horizon_end:
+        if current.weekday() == target_weekday:
+            dates_to_check.append(current)
+        current += timedelta(days=1)
+
+    # find which of these dates already have a shift from this template
+    cursor.execute(
+        "SELECT day FROM shifts WHERE template_id = %s AND day >= %s;",
+        (template_id, today)
+    )
+    existing_dates = {row[0] for row in cursor.fetchall()}
+
+    cursor.execute(
+        "SELECT excluded_date FROM template_exclusions WHERE template_id = %s;",
+        (template_id,)
+    )
+    excluded_dates = {row[0] for row in cursor.fetchall()}
+
+    created_ids = []
+    for date in dates_to_check:
+        if date not in existing_dates and date not in excluded_dates:
+            cursor.execute(
+                "INSERT INTO shifts (day, start_time, end_time, role_id, template_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;",
+                (date, start_time, end_time, role_id, template_id)
+            )
+            created_ids.append(cursor.fetchone()[0])
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return created_ids
+
+def get_all_shift_templates():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT shift_templates.id, shift_templates.day_name, shift_templates.start_time,
+               shift_templates.end_time, shift_templates.role_id, roles.name, shift_templates.active
+        FROM shift_templates
+        LEFT JOIN roles ON shift_templates.role_id = roles.id
+        ORDER BY shift_templates.day_name;
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
