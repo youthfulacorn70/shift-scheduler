@@ -1,2 +1,8 @@
 fastapi
 uvicorn
+psycopg2-binary
+bcrypt
+python-jose
+python-dotenv
+slowapi
+pydantic
