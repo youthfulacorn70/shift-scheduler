@@ -1,13 +1,21 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from models import Employee, Shift, calculate_overall_rating
 from algorithm import generate_schedule
-from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_availability, get_availability, delete_availability, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment
+from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts
 import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from pydantic import BaseModel, Field
+
+class LoginRequest(BaseModel):
+    username: str = Field(..., max_length=20)
+    password: str = Field(..., max_length=50)
 
 load_dotenv()
 
@@ -15,7 +23,11 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 24
 
+
 app = FastAPI()
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,60 +39,43 @@ app.add_middleware(
 # --- Auth helpers ---
 
 def hash_password(password: str) -> str:
-    # bcrypt requires bytes, so we encode the string first
-    # the result is also bytes so we decode it back to a string for storage
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
+def ensure_templates_generated():
+    templates = get_all_shift_templates()
+    for t in templates:
+        if t[6]:  # active
+            generate_shifts_from_template(t[0])
+
 def verify_password(password: str, hashed: str) -> bool:
-    # check if the typed password matches the stored hash
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 def create_token(data: dict) -> str:
     payload = data.copy()
-    # set expiry time — current time + 24 hours
     expire = datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
     payload["exp"] = expire
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 def decode_token(token: str) -> dict:
-    # decodes and verifies the token, returns the payload
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
 # --- Auth endpoints ---
 
 @app.post("/auth/login")
-async def login(data: dict):
-    username = data["username"]
-    password = data["password"]
+@limiter.limit("5/minute")
+async def login(request: Request, data: LoginRequest):
+    username = data.username
+    password = data.password
 
-    # look up the user
     user = get_user_by_username(username)
     if not user:
         return {"error": "Invalid username or password"}
 
-    # user row: (id, username, password_hash, role, employee_id)
     if not verify_password(password, user[2]):
         return {"error": "Invalid username or password"}
 
-    # create a token with their username and role baked in
     token = create_token({"sub": user[1], "role": user[3], "employee_id": user[4]})
     return {"token": token, "role": user[3], "username": user[1]}
-
-@app.post("/auth/create-user")
-async def create_user_account(data: dict):
-    username = data["username"]
-    password = data["password"]
-    role = data["role"]
-    employee_id = data.get("employee_id", None)
-
-    # check if username already exists
-    existing = get_user_by_username(username)
-    if existing:
-        return {"error": "Username already taken"}
-
-    hashed = hash_password(password)
-    user_id = create_user(username, hashed, role, employee_id)
-    return {"id": user_id, "username": username, "role": role}
 
 @app.get("/schedule/employee/{employee_id}")
 async def get_employee_schedule(employee_id: int):
@@ -113,11 +108,19 @@ async def list_employees():
         })
     return employees
 
+@app.get("/employees/{employee_id}/usage")
+async def employee_usage(employee_id: int):
+    return get_employee_usage(employee_id)
+
+@app.delete("/employees/{employee_id}")
+async def remove_employee(employee_id: int):
+    delete_employee(employee_id)
+    return {"message": "Employee deleted"}
+
 @app.post("/shifts")
 async def create_shift(data: dict):
     role_id = data.get("role_id", None)
     shift_id = add_shift(data["day"], data["start_time"], data["end_time"], role_id)
-    # look up role name so frontend can display it immediately
     role_name = None
     if role_id:
         roles = get_all_roles()
@@ -128,6 +131,8 @@ async def create_shift(data: dict):
 
 @app.get("/shifts")
 async def list_shifts():
+    ensure_templates_generated()
+
     rows = get_all_shifts()
     shifts = []
     for row in rows:
@@ -137,7 +142,8 @@ async def list_shifts():
             "start_time": str(row[2]),
             "end_time": str(row[3]),
             "role_id": row[4],
-            "role_name": row[5]   # added
+            "role_name": row[5],
+            "template_id": row[6]
         })
     return shifts
 
@@ -160,10 +166,9 @@ async def create_rating(data: dict):
 
 @app.post("/schedule")
 async def create_schedule(data: dict):
-    start_date = data["start_date"]  # e.g. "2026-05-25"
-    end_date = data["end_date"]      # e.g. "2026-05-31"
+    start_date = data["start_date"]
+    end_date = data["end_date"]
 
-    # Get employees from database
     emp_rows = get_all_employees()
 
     employees = []
@@ -178,10 +183,17 @@ async def create_schedule(data: dict):
             ratings[r[1]] = float(r[2])
 
         overall_rating = calculate_overall_rating(ratings)
-        available_days = get_availability(emp_id)
+
+        # get_availability now returns {"recurring_days": [...], "specific_overrides": [...]}
+        # for schedule generation, the algorithm itself will use get_availability_for_date
+        # per shift, so we just pass the employee id along
+        availability_data = get_availability(emp_id)
+        available_days = availability_data["recurring_days"]
+
         role_rows = get_employee_roles(emp_id)
         emp_roles = [row[1] for row in role_rows]
         emp = Employee(
+            employee_id=emp_id,
             name=emp_name,
             rating=overall_rating,
             available_days=available_days,
@@ -190,17 +202,16 @@ async def create_schedule(data: dict):
         )
         employees.append(emp)
 
-    # Get only shifts within the selected week
     shift_rows = get_all_shifts()
     shifts = []
     for row in shift_rows:
         shift_date = str(row[1])
-        if start_date <= shift_date <= end_date:  # only include shifts in this week
+        if start_date <= shift_date <= end_date:
             shift = Shift(
                 day=shift_date,
                 start_time=str(row[2]),
                 end_time=str(row[3]),
-                required_role=str(row[5]) if row[5] else None,  # row[5] is now role name
+                required_role=str(row[5]) if row[5] else None,
                 shift_id=row[0]
             )
             shifts.append(shift)
@@ -216,7 +227,6 @@ async def create_schedule(data: dict):
             "employee": shift.employee_name
         })
 
-    # Only clear and save this week's schedule
     clear_schedule_for_week(start_date, end_date)
     for shift in completed_schedule:
         if shift.employee_name:
@@ -233,6 +243,7 @@ async def check_schedule(start_date: str, end_date: str):
 
 @app.get("/schedule")
 async def list_schedule():
+    ensure_templates_generated()
     rows = get_schedule()
     schedule = []
     for row in rows:
@@ -242,22 +253,68 @@ async def list_schedule():
             "day": str(row[2]),
             "start_time": str(row[3]),
             "end_time": str(row[4]),
-            "role": row[5],        # role name, can be None
-            "shift_id": row[6]     # actual shift id for trade requests
+            "role": row[5],
+            "shift_id": row[6]
         })
     return schedule
 
+# === AVAILABILITY ENDPOINTS — rewritten for recurring + specific support ===
+
 @app.post("/availability")
 async def set_availability(data: dict):
+    """
+    Saves the recurring day checkboxes for an employee.
+    Wipes existing recurring rules first, then re-adds the selected days.
+    Expects: { employee_id: int, days: ["Monday", "Tuesday", ...] }
+    """
     delete_availability(data["employee_id"])
     for day in data["days"]:
-        add_availability(data["employee_id"], day)
+        add_recurring_availability(data["employee_id"], day, status='available')
     return {"message": "Availability updated"}
 
 @app.get("/availability/{employee_id}")
 async def get_employee_availability(employee_id: int):
-    days = get_availability(employee_id)
-    return {"days": days}
+    """
+    Returns both the recurring days list (for checkbox display) and
+    the specific date overrides (for the override list display).
+    """
+    data = get_availability(employee_id)
+    # keep "days" key for backwards compatibility with existing frontend code
+    return {"days": data["recurring_days"], "specific_overrides": data["specific_overrides"]}
+
+@app.post("/availability/specific")
+async def add_specific_override(data: dict):
+    """
+    Adds a one-off availability override for a specific date.
+    Validates the date is within the allowed window: starting next week,
+    capped at 4 weeks out, to give managers enough lead time to plan.
+    Expects: { employee_id: int, date: "2026-06-15", status: "available" | "unavailable" }
+    """
+    employee_id = data["employee_id"]
+    date_str = data["date"]
+    status = data["status"]
+
+    target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    today = datetime.utcnow().date()
+
+    # earliest allowed date is the upcoming Monday after this week
+    days_until_monday = (7 - today.weekday()) % 7
+    days_until_monday = days_until_monday if days_until_monday != 0 else 7
+    earliest_allowed = today + timedelta(days=days_until_monday)
+    latest_allowed = earliest_allowed + timedelta(weeks=4)
+
+    if target_date < earliest_allowed:
+        return {"error": "Availability changes must be made for next week or later."}
+    if target_date > latest_allowed:
+        return {"error": "Availability changes can only be made up to 4 weeks in advance."}
+
+    new_id = add_specific_availability(employee_id, date_str, status)
+    return {"id": new_id, "date": date_str, "status": status}
+
+@app.delete("/availability/specific/{override_id}")
+async def remove_specific_override(override_id: int):
+    delete_specific_availability(override_id)
+    return {"message": "Override removed"}
 
 @app.post("/roles")
 async def create_role(data: dict):
@@ -307,7 +364,6 @@ async def request_trade(data: dict):
         data["shift_id"],
         data.get("offered_shift_id", None)
     )
-    # if role mismatch, auto-approve employee step so it goes straight to manager
     if skip_employee:
         update_trade_employee_status(trade_id, 'approved')
     return {"id": trade_id, "status": "pending"}
@@ -360,17 +416,14 @@ async def list_trades_for_employee(employee_id: int):
 
 @app.get("/trades/hours-check")
 async def check_hours(employee_id: int, shift_id: int):
-    # get the shift's date to determine the week
     shift_rows = get_all_shifts()
     shift = next((r for r in shift_rows if r[0] == shift_id), None)
     if not shift:
         return {"error": "Shift not found"}
     
     shift_date = str(shift[1])
-    # get monday and sunday of that week
-    from datetime import datetime, timedelta
     d = datetime.strptime(shift_date, "%Y-%m-%d")
-    day = d.weekday()  # 0=Monday
+    day = d.weekday()
     monday = d - timedelta(days=day)
     sunday = monday + timedelta(days=6)
     
@@ -380,13 +433,11 @@ async def check_hours(employee_id: int, shift_id: int):
         sunday.strftime("%Y-%m-%d")
     )
     
-    # calculate the requested shift's duration
     shift_duration = (
         datetime.strptime(str(shift[3]), "%H:%M:%S") - 
         datetime.strptime(str(shift[2]), "%H:%M:%S")
     ).seconds / 3600
     
-    # get employee's desired hours
     emp_rows = get_all_employees()
     emp = next((r for r in emp_rows if r[0] == employee_id), None)
     desired_hours = emp[2] if emp else 40
@@ -403,6 +454,7 @@ async def check_hours(employee_id: int, shift_id: int):
 
 @app.get("/schedule/unassigned")
 async def list_unassigned_shifts(start_date: str, end_date: str):
+    ensure_templates_generated()
     rows = get_unassigned_shifts(start_date, end_date)
     result = []
     for row in rows:
@@ -443,3 +495,92 @@ async def remove_role(role_id: int):
 async def get_assignment(shift_id: int):
     employee_name = get_shift_assignment(shift_id)
     return {"employee": employee_name}
+
+@app.put("/auth/reset-password")
+async def reset_password(data: dict):
+    employee_id = data["employee_id"]
+    new_password = data["new_password"]
+    hashed = hash_password(new_password)
+    reset_user_password(employee_id, hashed)
+    return {"message": "Password reset"}
+
+@app.get("/schedule/day")
+async def get_day_overview_endpoint(date: str):
+    return get_day_overview(date)
+
+@app.post("/auth/reset-request")
+@limiter.limit("10/minute")
+async def request_password_reset(request: Request, data: dict):
+    employee_id = data["employee_id"]
+    reset_id = create_password_reset(employee_id)
+    return {"id": reset_id, "message": "Reset requested"}
+
+
+@app.get("/auth/reset-status")
+@limiter.limit("5/minute")
+async def check_reset_status(request: Request, username: str):
+    reset_id = check_pending_reset(username)
+    return {"eligible": reset_id is not None}
+
+
+@app.post("/auth/reset-complete")
+@limiter.limit("5/minute")
+async def complete_reset(request: Request, data: dict):
+    username = data["username"]
+    new_password = data["new_password"]
+    hashed = hash_password(new_password)
+    success = complete_password_reset(username, hashed)
+    if not success:
+        return {"error": "No valid reset request found. It may have expired."}
+    return {"message": "Password reset successful"}
+
+@app.post("/auth/create-user")
+@limiter.limit("10/minute")
+async def create_user_account(request: Request, data: dict):
+    username = data["username"]
+    password = data["password"]
+    role = data["role"]
+    employee_id = data.get("employee_id", None)
+
+    existing = get_user_by_username(username)
+    if existing:
+        return {"error": "Username already taken"}
+
+    hashed = hash_password(password)
+    user_id = create_user(username, hashed, role, employee_id)
+    return {"id": user_id, "username": username, "role": role}
+
+@app.post("/shift-templates")
+async def create_template(data: dict):
+    template_id = create_shift_template(
+        data["day_name"],
+        data["start_time"],
+        data["end_time"],
+        data.get("role_id", None)
+    )
+    if template_id is None:
+        return {"error": "An identical recurring shift already exists."}
+    generate_shifts_from_template(template_id)
+    return {"id": template_id, "message": "Recurring shift created"}
+
+
+@app.get("/shift-templates")
+async def list_templates():
+    rows = get_all_shift_templates()
+    return [
+        {
+            "id": row[0],
+            "day_name": row[1],
+            "start_time": str(row[2]),
+            "end_time": str(row[3]),
+            "role_id": row[4],
+            "role_name": row[5],
+            "active": row[6]
+        }
+        for row in rows
+    ]
+
+@app.get("/schedule/conflicts")
+def get_schedule_conflicts_route():
+    conflict_ids = get_schedule_conflicts()
+    return {"conflict_ids": list(conflict_ids)}

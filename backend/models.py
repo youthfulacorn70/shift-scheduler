@@ -1,5 +1,6 @@
 class Employee:
-    def __init__(self, name, rating, available_days, desired_hours, roles=[]):
+    def __init__(self, employee_id, name, rating, available_days, desired_hours, roles=[]):
+        self.employee_id = employee_id
         self.available_days = available_days
         self.name = name
         self.rating = rating

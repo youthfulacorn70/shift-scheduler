@@ -1,5 +1,6 @@
 from models import Employee, Shift, calculate_overall_rating
-from datetime import datetime  # added
+from datetime import datetime
+from database import get_availability_for_date  # added — checks specific overrides + recurring
 
 def generate_schedule(employees: list, shifts: list) -> list:
     sorted_employees = sorted(employees, key=lambda emp: emp.rating, reverse=True)
@@ -12,19 +13,23 @@ def generate_schedule(employees: list, shifts: list) -> list:
     for shift in shifts:
         shift_duration = calculate_shift_hours(shift.start_time, shift.end_time)
         
-        # convert the shift's date to a day name so it matches availability
+        # convert the shift's date to a day name so it matches recurring availability
         day_name = datetime.strptime(shift.day, "%Y-%m-%d").strftime("%A")
         
         for emp in sorted_employees:
-            already_working_that_day = day_name in assigned_days[emp.name]  # changed shift.day to day_name
+            already_working_that_day = shift.day in assigned_days[emp.name]
             would_exceed_hours = assigned_hours[emp.name] + shift_duration > emp.desired_hours
-            is_available = day_name in emp.available_days  # changed shift.day to day_name
+
+            # checks specific-date override first, falls back to recurring rule —
+            # this replaces the old simple "day_name in emp.available_days" check
+            is_available = get_availability_for_date(emp.employee_id, shift.day, day_name)
+
             has_required_role = shift.required_role is None or shift.required_role in emp.roles
 
             if is_available and not already_working_that_day and not would_exceed_hours and has_required_role:
                 shift.employee_name = emp.name
                 assigned_hours[emp.name] += shift_duration
-                assigned_days[emp.name].append(day_name)  # changed shift.day to day_name
+                assigned_days[emp.name].append(shift.day)
                 break
 
     return shifts
