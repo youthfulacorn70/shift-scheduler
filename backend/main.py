@@ -31,7 +31,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://shift-scheduler-4qgnvynew-shift-scheduler1.vercel.app"
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
