@@ -33,7 +33,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://shift-scheduler-4qgnvynew-shift-scheduler1.vercel.app"
+        "https://shift-scheduler-lyart.vercel.app"
     ],
     allow_methods=["*"],
     allow_headers=["*"],
