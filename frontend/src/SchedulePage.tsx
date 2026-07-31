@@ -109,7 +109,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   }
 
   const fetchUnassigned = (start: string, end: string) => {
-    fetch(`http://127.0.0.1:8000/schedule/unassigned?start_date=${start}&end_date=${end}`)
+    fetch(`${API_URL}/schedule/unassigned?start_date=${start}&end_date=${end}`)
       .then(res => res.json())
       .then(data => setUnassignedShifts(data))
   }
@@ -140,7 +140,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
     setEditingDay(dateStr)
     setSelectedDayShift(null)
     setStaffSearch('')
-    fetch(`http://127.0.0.1:8000/schedule/day?date=${dateStr}`)
+    fetch(`${API_URL}/schedule/day?date=${dateStr}`)
       .then(res => res.json())
       .then(data => setDayOverview(data))
   }
@@ -187,7 +187,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
 
   const handleUnassignInDay = (shift: DayShift) => {
     if (!shift.schedule_id) return
-    fetch(`http://127.0.0.1:8000/schedule/${shift.schedule_id}`, { method: 'DELETE' })
+    fetch(`${API_URL}/schedule/${shift.schedule_id}`, { method: 'DELETE' })
       .then(() => {
         openEditDay(editingDay!)
         fetchSchedule()
@@ -201,7 +201,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   const handleGenerateClick = () => {
     const start = toDateString(selectedWeekStart)
     const end = toDateString(addDays(selectedWeekStart, 13))
-    fetch(`http://127.0.0.1:8000/schedule/check?start_date=${start}&end_date=${end}`)
+    fetch(`${API_URL}/schedule/check?start_date=${start}&end_date=${end}`)
       .then(res => res.json())
       .then(data => {
         if (data.has_schedule) setConfirmOpen(true)
@@ -244,7 +244,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   }
 
   const unassignShift = (scheduleId: number) => {
-    fetch(`http://127.0.0.1:8000/schedule/${scheduleId}`, { method: 'DELETE' })
+    fetch(`${API_URL}/schedule/${scheduleId}`, { method: 'DELETE' })
       .then(() => {
         const start = toDateString(selectedWeekStart)
         const end = toDateString(addDays(selectedWeekStart, 6))
