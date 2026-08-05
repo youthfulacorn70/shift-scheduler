@@ -1,4 +1,5 @@
-import { API_URL } from './config'
+// ShiftsPage.tsx
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { Repeat } from 'lucide-react'
 import { useTranslation } from './i18n'
@@ -61,13 +62,13 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
   const [activeTab, setActiveTab] = useState<'all' | 'templates'>('all')
 
   useEffect(() => {
-  fetch(`${API_URL}/shifts`)
+  apiFetch(`/shifts`)
     .then(res => res.json())
     .then(data => setShifts(data))
-  fetch(`${API_URL}/roles`)
+  apiFetch(`/roles`)
     .then(res => res.json())
     .then(data => setRoles(data))
-  fetch(`${API_URL}/shift-templates`)
+  apiFetch(`/shift-templates`)
     .then(res => res.json())
     .then(data => setTemplates(data))
 }, [])
@@ -81,7 +82,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
 
   const createRecurringShift = () => {
   setRecurringError('')
-  fetch(`${API_URL}/shift-templates`, {
+  apiFetch(`/shift-templates`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -97,8 +98,8 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
         setRecurringError(data.error)
         return
       }
-      fetch(`${API_URL}/shift-templates`).then(res => res.json()).then(setTemplates)
-      fetch(`${API_URL}/shifts`).then(res => res.json()).then(setShifts)
+      apiFetch(`/shift-templates`).then(res => res.json()).then(setTemplates)
+      apiFetch(`/shifts`).then(res => res.json()).then(setShifts)
       setShowRecurringModal(false)
       setRecurringStart('')
       setRecurringEnd('')
@@ -107,7 +108,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
 }
 
   const addShift = () => {
-    fetch(`${API_URL}/shifts`, {
+    apiFetch(`/shifts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ day, start_time: startTime, end_time: endTime, role_id: roleId })
@@ -123,7 +124,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
 
   const saveEdit = () => {
     if (!editingShift) return
-    fetch(`http://127.0.0.1:8000/shifts/${editingShift.id}`, {
+    apiFetch(`/shifts/${editingShift.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -145,7 +146,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
   }
 
   const handleDeleteClick = (shift: Shift) => {
-    fetch(`http://127.0.0.1:8000/shifts/${shift.id}/assignment`)
+    apiFetch(`/shifts/${shift.id}/assignment`)
       .then(res => res.json())
       .then(data => {
         setDeleteAssignedTo(data.employee)
@@ -155,7 +156,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
 
   const confirmDelete = () => {
     if (!deletingShift) return
-    fetch(`http://127.0.0.1:8000/shifts/${deletingShift.id}`, { method: 'DELETE' })
+    apiFetch(`/shifts/${deletingShift.id}`, { method: 'DELETE' })
       .then(() => {
         setShifts(shifts.filter(s => s.id !== deletingShift.id))
         setEditingShift(null)
@@ -199,7 +200,6 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
         </button>
       </div>
 
-      {/* Delete confirmation popup */}
       {deletingShift && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className={`${card} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
@@ -228,7 +228,6 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
         </div>
       )}
 
-      {/* Add shift card */}
       <div className={`${card} p-4 rounded-lg shadow mb-6`}>
         <h2 className={`text-lg font-semibold mb-3 ${text}`}>{t('shifts.addShift')}</h2>
         <div className="flex gap-2 flex-wrap items-center">
@@ -266,7 +265,6 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
         </div>
       </div>
 
-      {/* Recurring shift button + modal */}
 <div className="mb-6">
   <button
     onClick={() => setShowRecurringModal(true)}
@@ -342,10 +340,8 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
   </div>
 )}
 
-      {/* Shifts list */}
       {activeTab === 'all' && (
         <>
-          {/* Recurring shifts section */}
           <div className="mb-6">
             <h2 className={`text-xs font-semibold mb-2 uppercase tracking-widest ${subtext}`}>{t('shifts.recurringShiftsSection')}</h2>
             <div className={`${card} rounded-lg shadow`}>
@@ -406,7 +402,6 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
             </div>
           </div>
 
-          {/* One-time shifts section */}
           <div>
             <h2 className={`text-xs font-semibold mb-2 uppercase tracking-widest ${subtext}`}>{t('shifts.oneTimeShiftsSection')}</h2>
             <div className={`${card} rounded-lg shadow`}>

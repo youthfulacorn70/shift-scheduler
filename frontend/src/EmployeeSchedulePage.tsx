@@ -1,3 +1,5 @@
+// EmployeeSchedulePage.tsx
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -15,7 +17,7 @@ function EmployeeSchedulePage({ employeeId, theme = 'light' }: { employeeId: num
   const [weekOffset, setWeekOffset] = useState(0)
 
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/schedule/employee/${employeeId}`)
+    apiFetch(`/schedule/employee/${employeeId}`)
       .then(res => res.json())
       .then(data => setSchedule(data))
   }, [employeeId])

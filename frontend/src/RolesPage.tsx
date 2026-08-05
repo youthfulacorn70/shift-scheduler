@@ -1,4 +1,5 @@
-import { API_URL } from './config'
+// RolesPage.tsx
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -20,13 +21,13 @@ function RolesPage({ theme = 'light' }: { theme?: string }) {
   const [usage, setUsage] = useState<RoleUsage | null>(null)
 
   useEffect(() => {
-    fetch(`${API_URL}/roles`)
+    apiFetch(`/roles`)
       .then(res => res.json())
       .then(data => setRoles(data))
   }, [])
 
   const addRole = () => {
-    fetch(`${API_URL}/roles`, {
+    apiFetch(`/roles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
@@ -39,7 +40,7 @@ function RolesPage({ theme = 'light' }: { theme?: string }) {
   }
 
   const handleDeleteClick = (role: Role) => {
-    fetch(`http://127.0.0.1:8000/roles/${role.id}/usage`)
+    apiFetch(`/roles/${role.id}/usage`)
       .then(res => res.json())
       .then(data => {
         setUsage(data)
@@ -49,7 +50,7 @@ function RolesPage({ theme = 'light' }: { theme?: string }) {
 
   const confirmDelete = () => {
     if (!deletingRole) return
-    fetch(`http://127.0.0.1:8000/roles/${deletingRole.id}`, { method: 'DELETE' })
+    apiFetch(`/roles/${deletingRole.id}`, { method: 'DELETE' })
       .then(() => {
         setRoles(roles.filter(r => r.id !== deletingRole.id))
         setDeletingRole(null)
@@ -67,7 +68,6 @@ function RolesPage({ theme = 'light' }: { theme?: string }) {
     <div className={text}>
       <h1 className="text-2xl font-bold mb-4">{t('roles.title')}</h1>
 
-      {/* Delete confirmation popup */}
       {deletingRole && usage && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className={`${card} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
@@ -94,7 +94,6 @@ function RolesPage({ theme = 'light' }: { theme?: string }) {
         </div>
       )}
 
-      {/* Create role card */}
       <div className={`${card} p-4 rounded-lg shadow mb-6`}>
         <h2 className={`text-lg font-semibold mb-3 ${text}`}>{t('roles.createRole')}</h2>
         <div className="flex gap-2">
@@ -110,7 +109,6 @@ function RolesPage({ theme = 'light' }: { theme?: string }) {
         </div>
       </div>
 
-      {/* Roles list */}
       <div className={`${card} rounded-lg shadow`}>
         {roles.length === 0 && <p className={`p-4 ${subtext}`}>{t('roles.noRoles')}</p>}
         {roles.map(role => (

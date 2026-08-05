@@ -1,4 +1,4 @@
-import { API_URL } from './config'
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -86,16 +86,16 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   const [resetTriggerError, setResetTriggerError] = useState('')
 
   useEffect(() => {
-    fetch(`${API_URL}/employees`)
+    apiFetch(`/employees`)
       .then(res => res.json())
       .then(data => setEmployees(data))
-    fetch(`${API_URL}/roles`)
+    apiFetch(`/roles`)
       .then(res => res.json())
       .then(data => setRoles(data))
   }, [])
 
   const addEmployee = () => {
-    fetch(`${API_URL}/employees`, {
+    apiFetch(`/employees`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, desired_hours: parseInt(desiredHours) })
@@ -109,7 +109,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   }
 
   const fetchAvailability = (empId: number) => {
-    fetch(`http://127.0.0.1:8000/availability/${empId}`)
+    apiFetch(`/availability/${empId}`)
       .then(res => res.json())
       .then(data => {
         setAvailability(data.days)
@@ -128,20 +128,20 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
     setNewOverrideDate('')
     setResetRequestSent(false)
     setResetTriggerError('')
-    fetch(`http://127.0.0.1:8000/ratings/${emp.id}`)
+    apiFetch(`/ratings/${emp.id}`)
       .then(res => res.json())
       .then(data => setRatings(data))
     fetchAvailability(emp.id)
-    fetch(`http://127.0.0.1:8000/employee-roles/${emp.id}`)
+    apiFetch(`/employee-roles/${emp.id}`)
       .then(res => res.json())
       .then(data => setEmployeeRoles(data))
-    fetch(`http://127.0.0.1:8000/auth/user-by-employee/${emp.id}`)
+    apiFetch(`/auth/user-by-employee/${emp.id}`)
       .then(res => res.json())
       .then(data => setHasLogin(data.exists))
   }
 
   const handleDeleteClick = (emp: Employee) => {
-    fetch(`http://127.0.0.1:8000/employees/${emp.id}/usage`)
+    apiFetch(`/employees/${emp.id}/usage`)
       .then(res => res.json())
       .then(data => {
         setDeleteEmployeeInfo(data)
@@ -151,7 +151,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
 
   const confirmDeleteEmployee = () => {
     if (!deletingEmployee) return
-    fetch(`http://127.0.0.1:8000/employees/${deletingEmployee.id}`, { method: 'DELETE' })
+    apiFetch(`/employees/${deletingEmployee.id}`, { method: 'DELETE' })
       .then(() => {
         setEmployees(employees.filter(e => e.id !== deletingEmployee.id))
         if (selectedEmp?.id === deletingEmployee.id) setSelectedEmp(null)
@@ -163,7 +163,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   const addSpecificOverride = () => {
     if (!selectedEmp || !newOverrideDate) return
     setOverrideError('')
-    fetch(`${API_URL}/availability/specific`, {
+    apiFetch(`/availability/specific`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -184,7 +184,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   }
 
   const removeSpecificOverride = (overrideId: number) => {
-    fetch(`http://127.0.0.1:8000/availability/specific/${overrideId}`, { method: 'DELETE' })
+    apiFetch(`/availability/specific/${overrideId}`, { method: 'DELETE' })
       .then(() => {
         setSpecificOverrides(specificOverrides.filter(o => o.id !== overrideId))
       })
@@ -192,7 +192,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
 
   const addRating = () => {
     const finalCategory = customCategory || category
-    fetch(`${API_URL}/ratings`, {
+    apiFetch(`/ratings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -214,7 +214,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
       setCreateLoginError(t('employees.usernamePasswordRequired'))
       return
     }
-    fetch(`${API_URL}/auth/create-user`, {
+    apiFetch(`/auth/create-user`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -239,7 +239,7 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
 
 const triggerPasswordReset = () => {
   setResetTriggerError('')
-  fetch(`${API_URL}/auth/reset-request`, {
+  apiFetch(`/auth/reset-request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ employee_id: selectedEmp?.id })
@@ -274,11 +274,10 @@ const triggerPasswordReset = () => {
     return 'bg-red-100 text-red-700'
   }
 
-  // date picker constraints: earliest = upcoming Monday after this week, latest = +4 weeks from there
   const getDateConstraints = () => {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const dayOfWeek = today.getDay() // 0 = Sunday
+    const dayOfWeek = today.getDay()
     const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek
     const earliest = new Date(today)
     earliest.setDate(today.getDate() + daysUntilMonday)
@@ -304,7 +303,6 @@ const triggerPasswordReset = () => {
     <div className={text}>
       <h1 className="text-2xl font-bold mb-4">{t('employees.title')}</h1>
 
-      {/* Add employee card */}
       <div className={`${card} p-4 rounded-lg shadow mb-6`}>
         <h2 className={`text-lg font-semibold mb-3 ${text}`}>{t('employees.addEmployee')}</h2>
         <div className="flex gap-2 flex-wrap items-center">
@@ -326,7 +324,6 @@ const triggerPasswordReset = () => {
         </div>
       </div>
 
-      {/* Employee list */}
       <div className={`${card} rounded-lg shadow mb-6`}>
         {employees.map(emp => (
           <div
@@ -347,11 +344,9 @@ const triggerPasswordReset = () => {
         ))}
       </div>
 
-      {/* Selected employee detail */}
       {selectedEmp && (
         <div className={`${card} p-6 rounded-lg shadow`}>
 
-          {/* Ratings */}
           <div className="flex items-center justify-between mb-3">
             <h2 className={`text-lg font-semibold ${text}`}>{t('employees.ratingsFor')} {selectedEmp.name}</h2>
             {averageScore && (
@@ -410,7 +405,6 @@ const triggerPasswordReset = () => {
             )}
           </div>
 
-          {/* Availability — Recurring */}
           <div className="mt-6">
             <div className="flex items-center justify-between mb-2">
               <h2 className={`text-lg font-semibold ${text}`}>{t('employees.recurringAvailability')}</h2>
@@ -443,7 +437,7 @@ const triggerPasswordReset = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      fetch(`${API_URL}/availability`, {
+                      apiFetch(`/availability`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ employee_id: selectedEmp.id, days: availability })
@@ -479,7 +473,6 @@ const triggerPasswordReset = () => {
             )}
           </div>
 
-          {/* Availability — Specific date overrides */}
           <div className="mt-6">
             <h2 className={`text-lg font-semibold mb-2 ${text}`}>{t('employees.specificDateOverrides')}</h2>
             <p className={`text-xs mb-3 ${subtext}`}>
@@ -530,7 +523,6 @@ const triggerPasswordReset = () => {
             )}
           </div>
 
-          {/* Roles */}
           <div className="mt-6">
             <h2 className={`text-lg font-semibold mb-2 ${text}`}>{t('employees.roles')}</h2>
             <div className="flex gap-2 flex-wrap">
@@ -541,13 +533,13 @@ const triggerPasswordReset = () => {
                     key={role.id}
                     onClick={() => {
                       if (hasRole) {
-                        fetch(`${API_URL}/employee-roles`, {
+                        apiFetch(`/employee-roles`, {
                           method: 'DELETE',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ employee_id: selectedEmp.id, role_id: role.id })
                         }).then(() => setEmployeeRoles(employeeRoles.filter(r => r.id !== role.id)))
                       } else {
-                        fetch(`${API_URL}/employee-roles`, {
+                        apiFetch(`/employee-roles`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ employee_id: selectedEmp.id, role_id: role.id })
@@ -568,7 +560,6 @@ const triggerPasswordReset = () => {
             </div>
           </div>
 
-          {/* Login account */}
           <div className="mt-6">
             <h2 className={`text-lg font-semibold mb-2 ${text}`}>{t('employees.loginAccount')}</h2>
             {hasLogin === null && <p className={`text-sm ${subtext}`}>{t('employees.checking')}</p>}
@@ -613,7 +604,7 @@ const triggerPasswordReset = () => {
                     />
                     <button
                       onClick={() => {
-                        fetch(`${API_URL}/auth/reset-password`, {
+                        apiFetch(`/auth/reset-password`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ employee_id: selectedEmp?.id, new_password: resetPassword })
@@ -663,7 +654,6 @@ const triggerPasswordReset = () => {
         </div>
       )}
 
-      {/* Delete employee confirmation popup */}
       {deletingEmployee && deleteEmployeeInfo && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className={`${card} rounded-lg shadow-lg p-6 max-w-sm w-full`}>

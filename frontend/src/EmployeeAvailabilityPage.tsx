@@ -1,4 +1,5 @@
-import { API_URL } from './config'
+// EmployeeAvailabilityPage.tsx
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -32,7 +33,7 @@ function EmployeeAvailabilityPage({ employeeId, theme = 'light' }: { employeeId:
   const [overrideError, setOverrideError] = useState('')
 
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/availability/${employeeId}`)
+    apiFetch(`/availability/${employeeId}`)
       .then(res => res.json())
       .then(data => {
         setAvailability(data.days)
@@ -49,7 +50,7 @@ function EmployeeAvailabilityPage({ employeeId, theme = 'light' }: { employeeId:
   }
 
   const saveAvailability = () => {
-    fetch(`${API_URL}/availability`, {
+    apiFetch(`/availability`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ employee_id: employeeId, days: availability })
@@ -61,7 +62,7 @@ function EmployeeAvailabilityPage({ employeeId, theme = 'light' }: { employeeId:
   const addSpecificOverride = () => {
     if (!newOverrideDate) return
     setOverrideError('')
-    fetch(`${API_URL}/availability/specific`, {
+    apiFetch(`/availability/specific`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -82,7 +83,7 @@ function EmployeeAvailabilityPage({ employeeId, theme = 'light' }: { employeeId:
   }
 
   const removeSpecificOverride = (overrideId: number) => {
-    fetch(`http://127.0.0.1:8000/availability/specific/${overrideId}`, { method: 'DELETE' })
+    apiFetch(`/availability/specific/${overrideId}`, { method: 'DELETE' })
       .then(() => {
         setSpecificOverrides(specificOverrides.filter(o => o.id !== overrideId))
       })
@@ -139,7 +140,6 @@ function EmployeeAvailabilityPage({ employeeId, theme = 'light' }: { employeeId:
         </div>
       </div>
 
-      {/* Specific date overrides */}
       <div className={`${card} p-6 rounded-lg shadow`}>
         <h2 className={`text-lg font-semibold mb-2 ${text}`}>{t('employees.specificDateOverrides')}</h2>
         <p className={`text-xs mb-4 ${subtext}`}>

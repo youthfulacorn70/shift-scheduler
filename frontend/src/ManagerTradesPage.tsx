@@ -1,4 +1,5 @@
-import { API_URL } from './config'
+// ManagerTradesPage.tsx
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -30,13 +31,13 @@ function ManagerTradesPage({ theme = 'light' }: { theme?: string }) {
   const [warnings, setWarnings] = useState<{[tradeId: number]: HoursWarning}>({})
 
   useEffect(() => {
-    fetch(`${API_URL}/trades`)
+    apiFetch(`/trades`)
       .then(res => res.json())
       .then(async (data: Trade[]) => {
         setTrades(data)
         const warningMap: {[tradeId: number]: HoursWarning} = {}
         for (const trade of data) {
-          const res = await fetch(`http://127.0.0.1:8000/trades/hours-check?employee_id=${trade.requester_id}&shift_id=${trade.shift_id}`)
+          const res = await apiFetch(`/trades/hours-check?employee_id=${trade.requester_id}&shift_id=${trade.shift_id}`)
           const check = await res.json()
           warningMap[trade.id] = check
         }
@@ -45,7 +46,7 @@ function ManagerTradesPage({ theme = 'light' }: { theme?: string }) {
   }, [])
 
   const respondToTrade = (tradeId: number, status: string) => {
-    fetch(`http://127.0.0.1:8000/trades/${tradeId}/manager`, {
+    apiFetch(`/trades/${tradeId}/manager`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })

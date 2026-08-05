@@ -1,4 +1,5 @@
-import { API_URL } from './config'
+// SchedulePage.tsx
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
 import { useTranslation } from './i18n'
@@ -71,7 +72,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   const [unassigningEntry, setUnassigningEntry] = useState<AssignedEntry | null>(null)
   const [conflictIds, setConflictIds] = useState<number[]>([])
 
-  // Edit Day panel state
   const [editingDay, setEditingDay] = useState<string | null>(null)
   const [dayOverview, setDayOverview] = useState<DayOverview | null>(null)
   const [selectedDayShift, setSelectedDayShift] = useState<DayShift | null>(null)
@@ -109,19 +109,19 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   }
 
   const fetchUnassigned = (start: string, end: string) => {
-    fetch(`${API_URL}/schedule/unassigned?start_date=${start}&end_date=${end}`)
+    apiFetch(`/schedule/unassigned?start_date=${start}&end_date=${end}`)
       .then(res => res.json())
       .then(data => setUnassignedShifts(data))
   }
 
   const fetchSchedule = () => {
-    fetch(`${API_URL}/schedule`)
+    apiFetch(`/schedule`)
       .then(res => res.json())
       .then(data => setSchedule(data))
   }
 
   const fetchConflicts = () => {
-    fetch(`${API_URL}/schedule/conflicts`)
+    apiFetch(`/schedule/conflicts`)
       .then(res => res.json())
       .then(data => setConflictIds(data.conflict_ids))
   }
@@ -140,7 +140,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
     setEditingDay(dateStr)
     setSelectedDayShift(null)
     setStaffSearch('')
-    fetch(`${API_URL}/schedule/day?date=${dateStr}`)
+    apiFetch(`/schedule/day?date=${dateStr}`)
       .then(res => res.json())
       .then(data => setDayOverview(data))
   }
@@ -169,7 +169,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
 }
 
   const doAssignInDay = (shift: DayShift, employee: AvailableEmployee) => {
-    fetch(`${API_URL}/schedule/assign`, {
+    apiFetch(`/schedule/assign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ shift_id: shift.shift_id, employee_id: employee.id })
@@ -187,7 +187,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
 
   const handleUnassignInDay = (shift: DayShift) => {
     if (!shift.schedule_id) return
-    fetch(`${API_URL}/schedule/${shift.schedule_id}`, { method: 'DELETE' })
+    apiFetch(`/schedule/${shift.schedule_id}`, { method: 'DELETE' })
       .then(() => {
         openEditDay(editingDay!)
         fetchSchedule()
@@ -201,7 +201,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   const handleGenerateClick = () => {
     const start = toDateString(selectedWeekStart)
     const end = toDateString(addDays(selectedWeekStart, 13))
-    fetch(`${API_URL}/schedule/check?start_date=${start}&end_date=${end}`)
+    apiFetch(`/schedule/check?start_date=${start}&end_date=${end}`)
       .then(res => res.json())
       .then(data => {
         if (data.has_schedule) setConfirmOpen(true)
@@ -212,13 +212,13 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   const generateSchedule = () => {
     const start = toDateString(selectedWeekStart)
     const end = toDateString(addDays(selectedWeekStart, 13))
-    fetch(`${API_URL}/schedule`, {
+    apiFetch(`/schedule`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ start_date: start, end_date: end })
     })
       .then(res => res.json())
-      .then(() => fetch(`${API_URL}/schedule`))
+      .then(() => apiFetch(`/schedule`))
       .then(res => res.json())
       .then(data => {
         setSchedule(data)
@@ -229,7 +229,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   }
 
   const assignShift = (shiftId: number, employeeId: number) => {
-    fetch(`${API_URL}/schedule/assign`, {
+    apiFetch(`/schedule/assign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ shift_id: shiftId, employee_id: employeeId })
@@ -244,7 +244,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
   }
 
   const unassignShift = (scheduleId: number) => {
-    fetch(`${API_URL}/schedule/${scheduleId}`, { method: 'DELETE' })
+    apiFetch(`/schedule/${scheduleId}`, { method: 'DELETE' })
       .then(() => {
         const start = toDateString(selectedWeekStart)
         const end = toDateString(addDays(selectedWeekStart, 6))
@@ -269,7 +269,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
     e.name.toLowerCase().includes(staffSearch.toLowerCase())
   ) ?? []
 
-  // Theme shorthand variables
   const card = theme === 'dark' ? 'bg-gray-800 border border-gray-700' : 'bg-white'
   const text = theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
   const subtext = theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
@@ -282,7 +281,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
     <div className={text}>
       <h1 className="text-2xl font-bold mb-4">{t('schedule.title')}</h1>
 
-      {/* Generate controls */}
       <div className={`${card} p-4 rounded-lg shadow mb-6 flex items-center gap-4 flex-wrap`}>
         <div className="flex items-center gap-2">
           <button onClick={() => setSelectedWeekStart(addDays(selectedWeekStart, -7))} className={`border px-3 py-2 rounded-lg text-sm transition-colors ${btnBorder}`}></button>
@@ -297,7 +295,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
         </button>
       </div>
 
-      {/* Confirmation popup */}
       {confirmOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
           <div className={`${popupCard} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
@@ -311,7 +308,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
         </div>
       )}
 
-      {/* Manual assignment popup */}
       {assigningShift && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className={`${popupCard} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
@@ -340,7 +336,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
         </div>
       )}
 
-      {/* Unassign popup */}
       {unassigningEntry && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className={`${popupCard} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
@@ -357,12 +352,10 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
         </div>
       )}
 
-      {/* Edit Day panel */}
       {editingDay && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
           <div className={`${panelBg} border rounded-xl w-[640px] h-[560px] flex flex-col shadow-2xl`} style={{padding: '20px 24px'}}>
 
-            {/* Panel header */}
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <div>
                 <span className={`text-lg font-semibold ${text}`}>
@@ -373,7 +366,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
               <button onClick={closeEditDay} className={`text-sm ${subtext} hover:${text} transition-colors`}><X size={16} strokeWidth={1.75} /></button>
             </div>
 
-            {/* Shifts list — scrollable */}
             <div className="flex-1 overflow-y-auto flex flex-col gap-2 pr-1 mb-4">
               {!dayOverview && <p className={`text-sm ${subtext}`}>Loading...</p>}
               {dayOverview?.shifts.map(shift => {
@@ -425,7 +417,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
               })}
             </div>
 
-            {/* Staff picker — shown when a shift is selected */}
             <div className={`border-t flex-shrink-0 pt-3 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
               <div className="flex items-center justify-between mb-2">
                 <p className={`text-xs ${subtext}`}>
@@ -475,7 +466,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
             </div>
           </div>
 
-          {/* Confirm reassign popup */}
           {confirmReassign && (
             <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
               <div className={`${popupCard} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
@@ -516,7 +506,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
         </div>
       )}
 
-      {/* Needs Coverage panel */}
       {unassignedShifts.length > 0 && (
         <div className={`border rounded-lg p-4 mb-6 ${theme === 'dark' ? 'bg-red-950 border-red-800' : 'bg-red-50 border-red-200'}`}>
           <h2 className="text-red-500 font-semibold mb-3 text-sm">
@@ -538,7 +527,6 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
         </div>
       )}
 
-      {/* Calendar */}
       {weeksToShow.map((weekMonday, weekIndex) => (
         <div key={weekIndex} className="mb-6">
           <h2 className={`text-xs font-semibold mb-2 uppercase tracking-widest ${subtext}`}>

@@ -1,4 +1,5 @@
-import { API_URL } from './config'
+// ShiftTradesPage.tsx
+import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 
@@ -43,21 +44,21 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
   const [myEmployeeName, setMyEmployeeName] = useState<string>('')
 
   useEffect(() => {
-    fetch(`${API_URL}/schedule`)
+    apiFetch(`/schedule`)
       .then(res => res.json())
       .then(data => setSchedule(data))
 
-    fetch(`http://127.0.0.1:8000/trades/employee/${employeeId}`)
+    apiFetch(`/trades/employee/${employeeId}`)
       .then(res => res.json())
       .then(data => setIncomingTrades(data))
 
-    fetch(`http://127.0.0.1:8000/employee-roles/${employeeId}`)
+    apiFetch(`/employee-roles/${employeeId}`)
       .then(res => res.json())
       .then(data => setEmployeeRoles(data.map((r: {id: number, name: string}) => r.name)))
   }, [employeeId])
 
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/employees`)
+    apiFetch(`/employees`)
       .then(res => res.json())
       .then(data => {
         const me = data.find((e: {id: number, name: string}) => e.id === employeeId)
@@ -71,7 +72,7 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
   }
 
   const requestTrade = (shift: ScheduleEntry, skipEmployeeApproval: boolean = false) => {
-    fetch(`${API_URL}/trades`, {
+    apiFetch(`/trades`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -89,7 +90,7 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
   }
 
   const respondToTrade = (tradeId: number, status: string) => {
-    fetch(`http://127.0.0.1:8000/trades/${tradeId}/employee`, {
+    apiFetch(`/trades/${tradeId}/employee`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status })
@@ -110,7 +111,6 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
     <div className={text}>
       <h1 className="text-2xl font-bold mb-6">{t('trades.employeeTitle')}</h1>
 
-      {/* Role mismatch popup */}
       {roleMismatchShift && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className={`${popupCard} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
@@ -130,7 +130,6 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
         </div>
       )}
 
-      {/* Incoming trade requests */}
       {incomingTrades.length > 0 && (
         <div className={`${card} p-4 rounded-lg shadow mb-6`}>
           <h2 className={`text-lg font-semibold mb-3 ${text}`}>{t('trades.incomingRequests')}</h2>
@@ -151,7 +150,6 @@ function ShiftTradesPage({ employeeId, theme = 'light' }: { employeeId: number, 
         </div>
       )}
 
-      {/* Request a shift trade */}
       <div className={`${card} p-4 rounded-lg shadow`}>
         <h2 className={`text-lg font-semibold mb-1 ${text}`}>{t('trades.requestTitle')}</h2>
         <p className={`text-sm mb-4 ${subtext}`}>{t('trades.requestDesc')}</p>
