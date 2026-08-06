@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from models import Employee, Shift, calculate_overall_rating
 from algorithm import generate_schedule
-from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts
+from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts, signup_new_manager, create_starter_shift_templates
 import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
@@ -29,12 +29,11 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# main.py — replace the CORSMiddleware block
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://shift-scheduler-lyart.vercel.app"
-    ],
+    allow_origins=["https://shift-scheduler-lyart.vercel.app"],
+    allow_origin_regex=r"http://localhost:\d+",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -607,3 +606,61 @@ def get_schedule_conflicts_route(request: Request):
     manager_id = get_manager_id_from_request(request)
     conflict_ids = get_schedule_conflicts(manager_id)
     return {"conflict_ids": list(conflict_ids)}
+
+class SignupRequest(BaseModel):
+    username: str = Field(..., max_length=20)
+    password: str = Field(..., max_length=50)
+
+@app.post("/auth/signup")
+@limiter.limit("5/minute")
+async def signup(request: Request, data: SignupRequest):
+    existing = get_user_by_username(data.username)
+    if existing:
+        return {"error": "Username already taken"}
+
+    hashed = hash_password(data.password)
+    manager_id = create_user(data.username, hashed, "manager")
+
+    role_ids = signup_new_manager(manager_id)
+    template_ids = create_starter_shift_templates(manager_id, role_ids)
+    for template_id in template_ids:
+        generate_shifts_from_template(template_id)
+
+    today = datetime.utcnow().date()
+    start_date = today.strftime("%Y-%m-%d")
+    end_date = (today + timedelta(days=13)).strftime("%Y-%m-%d")
+
+    emp_rows = get_all_employees(manager_id)
+    employees = []
+    for row in emp_rows:
+        emp_id, emp_name, emp_desired_hours = row
+        rating_rows = get_ratings_by_employee(emp_id)
+        ratings = {r[1]: float(r[2]) for r in rating_rows}
+        overall_rating = calculate_overall_rating(ratings)
+        availability_data = get_availability(emp_id)
+        role_rows = get_employee_roles(emp_id)
+        employees.append(Employee(
+            employee_id=emp_id, name=emp_name, rating=overall_rating,
+            available_days=availability_data["recurring_days"],
+            desired_hours=emp_desired_hours, roles=[r[1] for r in role_rows]
+        ))
+
+    shift_rows = get_all_shifts(manager_id)
+    shifts = []
+    for row in shift_rows:
+        shift_date = str(row[1])
+        if start_date <= shift_date <= end_date:
+            shifts.append(Shift(
+                day=shift_date, start_time=str(row[2]), end_time=str(row[3]),
+                required_role=str(row[5]) if row[5] else None, shift_id=row[0]
+            ))
+
+    completed_schedule = generate_schedule(employees, shifts)
+    for shift in completed_schedule:
+        if shift.employee_name:
+            emp_id = next((r[0] for r in emp_rows if r[1] == shift.employee_name), None)
+            if emp_id and shift.shift_id:
+                save_schedule(shift.shift_id, emp_id, manager_id)
+
+    token = create_token({"sub": data.username, "role": "manager", "employee_id": None, "id": manager_id})
+    return {"token": token, "role": "manager", "username": data.username}

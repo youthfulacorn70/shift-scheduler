@@ -941,7 +941,7 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
     # find all dates matching this day_name between today and horizon_end
     dates_to_check = []
     current = today
-    while current <= horizon_end:
+    while current < horizon_end:
         if current.weekday() == target_weekday:
             dates_to_check.append(current)
         current += timedelta(days=1)
@@ -988,3 +988,87 @@ def get_all_shift_templates(manager_id):
     cursor.close()
     conn.close()
     return rows
+
+def signup_new_manager(manager_id):
+    """
+    Called right after a new manager's user account is created.
+    Copies a starter roster from employee_pool: 2 Host, 4 Server, 4 Cook.
+    Creates the three roles, links each employee to their role, seeds
+    Mon-Fri availability (so they're schedulable immediately), and gives
+    each employee 5 rating categories all set to their pool starting_rating.
+    Returns a dict of {role_name: role_id} for use building the shift template.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    role_ids = {}
+    for role_name in ['Host', 'Server', 'Cook']:
+        cursor.execute(
+            "INSERT INTO roles (name, manager_id) VALUES (%s, %s) RETURNING id;",
+            (role_name, manager_id)
+        )
+        role_ids[role_name] = cursor.fetchone()[0]
+
+    roster = []
+    for role_name, count in [('Host', 2), ('Server', 4), ('Cook', 4)]:
+        cursor.execute(
+            "SELECT name, role_name, starting_rating, desired_hours FROM employee_pool WHERE role_name = %s ORDER BY RANDOM() LIMIT %s;",
+            (role_name, count)
+        )
+        roster.extend(cursor.fetchall())
+
+    categories = ['Punctuality', 'Reliability', 'Speed', 'Customer Attitude', 'Teamwork']
+    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+    for name, role_name, starting_rating, desired_hours in roster:
+        cursor.execute(
+            "INSERT INTO employees (name, desired_hours, manager_id) VALUES (%s, %s, %s) RETURNING id;",
+            (name, desired_hours, manager_id)
+        )
+        employee_id = cursor.fetchone()[0]
+
+        cursor.execute(
+            "INSERT INTO employee_roles (employee_id, role_id) VALUES (%s, %s);",
+            (employee_id, role_ids[role_name])
+        )
+
+        for category in categories:
+            cursor.execute(
+                "INSERT INTO ratings (employee_id, category, score) VALUES (%s, %s, %s);",
+                (employee_id, category, starting_rating)
+            )
+
+        for day in weekdays:
+            cursor.execute(
+                "INSERT INTO availability (employee_id, type, day_name, status) VALUES (%s, 'recurring', %s, 'available');",
+                (employee_id, day)
+            )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return role_ids
+
+
+def create_starter_shift_templates(manager_id, role_ids):
+    """
+    Creates a 5-shift daily template (1 Host, 2 Server, 2 Cook) for Mon-Fri.
+    Reuses the existing create_shift_template function, which already
+    handles duplicate-checking and manager scoping.
+    """
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    shift_defs = [
+        ('09:00:00', '17:00:00', 'Host'),
+        ('09:00:00', '17:00:00', 'Server'),
+        ('12:00:00', '20:00:00', 'Server'),
+        ('08:00:00', '16:00:00', 'Cook'),
+        ('12:00:00', '20:00:00', 'Cook'),
+    ]
+
+    template_ids = []
+    for day in days:
+        for start_time, end_time, role_name in shift_defs:
+            template_id = create_shift_template(day, start_time, end_time, manager_id, role_ids[role_name])
+            if template_id:
+                template_ids.append(template_id)
+    return template_ids
