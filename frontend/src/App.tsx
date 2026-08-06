@@ -57,6 +57,12 @@ function App() {
   const [resetError, setResetError] = useState('')
   const [resetDone, setResetDone] = useState(false)
   const { t } = useTranslation()
+  const [showSignupFlow, setShowSignupFlow] = useState(false)
+  const [signupUsername, setSignupUsername] = useState('')
+  const [signupPassword, setSignupPassword] = useState('')
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('')
+  const [signupError, setSignupError] = useState('')
+  const [signupDone, setSignupDone] = useState(false)
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light'
@@ -64,7 +70,7 @@ function App() {
     localStorage.setItem('theme', next)
   }
 
-  const handleLogin = () => {
+const handleLogin = () => {
   apiFetch(`/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -91,7 +97,52 @@ function App() {
       setLoginError('')
       setPage(data.role === 'manager' ? 'schedule' : 'my-schedule')
     })
+    .catch(() => setLoginError('Could not connect to the server. Please try again.'))
 }
+
+const [signupLoading, setSignupLoading] = useState(false)
+
+const handleSignup = () => {
+  setSignupError('')
+  if (!signupUsername || !signupPassword) {
+    setSignupError('Please fill in both fields.')
+    return
+  }
+  if (signupPassword !== signupConfirmPassword) {
+    setSignupError('Passwords do not match.')
+    return
+  }
+  setSignupLoading(true)
+  apiFetch(`/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: signupUsername, password: signupPassword })
+  })
+    .then(res => {
+      if (res.status === 429) {
+        setSignupError('Too many attempts. Please wait a minute and try again.')
+        return null
+      }
+      return res.json()
+    })
+    .then(data => {
+      if (!data) return
+      if (data.error) { setSignupError(data.error); return }
+      setSignupDone(true)
+    })
+    .catch(() => setSignupError('Could not connect to the server. Please try again.'))
+    .finally(() => setSignupLoading(false))
+}
+
+const backToLoginFromSignup = () => {
+  setShowSignupFlow(false)
+  setSignupUsername('')
+  setSignupPassword('')
+  setSignupConfirmPassword('')
+  setSignupError('')
+  setSignupDone(false)
+}
+
   const checkResetEligibility = () => {
   setResetChecking(true)
   setResetError('')
@@ -173,7 +224,7 @@ const backToLogin = () => {
             <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-semibold">S</div>
             <span className="text-sm font-medium text-gray-900">Shift Scheduler</span>
           </div>
-          {!showResetFlow ? (
+          {!showResetFlow && !showSignupFlow ? (
   <>
     <h2 className="text-2xl font-semibold text-gray-900 tracking-tight mb-7">Welcome back</h2>
     <label className="text-xs font-medium text-gray-500 mb-1.5 block">Username</label>
@@ -193,12 +244,14 @@ const backToLogin = () => {
       onChange={e => setLoginPassword(e.target.value)}
       onKeyDown={e => e.key === 'Enter' && handleLogin()}
     />
-    <button
-      onClick={() => setShowResetFlow(true)}
-      className="text-indigo-500 text-xs mb-4 hover:underline text-left"
-    >
-      Forgot password?
-    </button>
+    <div className="flex justify-between mb-4">
+  <button onClick={() => setShowResetFlow(true)} className="text-indigo-500 text-xs hover:underline text-left">
+    Forgot password?
+  </button>
+  <button onClick={() => setShowSignupFlow(true)} className="text-indigo-500 text-xs hover:underline text-left">
+    New here? Sign up
+  </button>
+</div>
     {loginError && <p className="text-red-500 text-xs mb-4">{loginError}</p>}
     <button
       onClick={handleLogin}
@@ -207,7 +260,59 @@ const backToLogin = () => {
       Sign in →
     </button>
   </>
+) : showSignupFlow ? (
+  <>
+    <h2 className="text-2xl font-semibold text-gray-900 tracking-tight mb-7">Create your account</h2>
+    {signupDone ? (
+      <>
+        <p className="text-green-600 text-sm mb-6">✓ Account created! Your workspace is ready with sample employees and shifts to explore.</p>
+        <button
+          onClick={backToLoginFromSignup}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
+        >
+          Log in here
+        </button>
+      </>
+    ) : (
+      <>
+        <label className="text-xs font-medium text-gray-500 mb-1.5 block">Username</label>
+        <input
+          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all mb-4"
+          placeholder="choose-a-username"
+          value={signupUsername}
+          onChange={e => setSignupUsername(e.target.value)}
+        />
+        <label className="text-xs font-medium text-gray-500 mb-1.5 block">Password</label>
+        <input
+          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all mb-4"
+          type="password"
+          value={signupPassword}
+          onChange={e => setSignupPassword(e.target.value)}
+        />
+        <label className="text-xs font-medium text-gray-500 mb-1.5 block">Confirm password</label>
+        <input
+          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all mb-4"
+          type="password"
+          value={signupConfirmPassword}
+          onChange={e => setSignupConfirmPassword(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSignup()}
+        />
+        {signupError && <p className="text-red-500 text-xs mb-4">{signupError}</p>}
+        <button
+          onClick={handleSignup}
+          disabled={signupLoading}
+          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors mb-2 disabled:opacity-50"
+        >
+          {signupLoading ? 'Creating your workspace...' : 'Create account'}
+        </button>
+        <button onClick={backToLoginFromSignup} className="text-gray-400 text-xs hover:underline">
+          Back to sign in
+        </button>
+      </>
+    )}
+  </>
 ) : (
+  // ... existing reset flow JSX stays exactly as-is here ...
   <>
     <h2 className="text-2xl font-semibold text-gray-900 tracking-tight mb-7">Reset password</h2>
           {resetDone ? (
