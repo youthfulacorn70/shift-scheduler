@@ -508,13 +508,23 @@ const backToLogin = () => {
         </div>
 
         <div className="flex-1 overflow-auto p-8">
-          <div key={page} className="page-transition">
-            {page === 'employees' && <EmployeesPage theme={theme} />}
-            {page === 'shifts' && <ShiftsPage theme={theme} />}
-            {page === 'schedule' && <SchedulePage theme={theme} />}
-            {page === 'roles' && <RolesPage theme={theme} />}
-            {page === 'trades' && <ManagerTradesPage theme={theme} />}
-            {page === 'settings' && <SettingsPage theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} username={username} />}
+          <div style={{ display: page === 'employees' ? 'block' : 'none' }}>
+            <EmployeesPage theme={theme} />
+          </div>
+          <div style={{ display: page === 'shifts' ? 'block' : 'none' }}>
+            <ShiftsPage theme={theme} />
+          </div>
+          <div style={{ display: page === 'schedule' ? 'block' : 'none' }}>
+            <SchedulePage theme={theme} />
+          </div>
+          <div style={{ display: page === 'roles' ? 'block' : 'none' }}>
+            <RolesPage theme={theme} />
+          </div>
+          <div style={{ display: page === 'trades' ? 'block' : 'none' }}>
+            <ManagerTradesPage theme={theme} />
+          </div>
+          <div style={{ display: page === 'settings' ? 'block' : 'none' }}>
+            <SettingsPage theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} username={username} />
           </div>
         </div>
       </div>
@@ -584,11 +594,19 @@ const backToLogin = () => {
 
       {/* Page content */}
       <div className="p-8">
-        <div key={page} className="page-transition">
-          {page === 'my-schedule' && <EmployeeSchedulePage employeeId={employeeId} theme={theme} />}
-          {page === 'my-availability' && <EmployeeAvailabilityPage employeeId={employeeId} theme={theme} />}
-          {page === 'my-trades' && <ShiftTradesPage employeeId={employeeId} theme={theme} />}
-          {page === 'settings' && <SettingsPage theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} username={username} />}
+        <div className="p-8">
+          <div style={{ display: page === 'my-schedule' ? 'block' : 'none' }}>
+            <EmployeeSchedulePage employeeId={employeeId} theme={theme} />
+          </div>
+          <div style={{ display: page === 'my-availability' ? 'block' : 'none' }}>
+            <EmployeeAvailabilityPage employeeId={employeeId} theme={theme} />
+          </div>
+          <div style={{ display: page === 'my-trades' ? 'block' : 'none' }}>
+            <ShiftTradesPage employeeId={employeeId} theme={theme} />
+          </div>
+          <div style={{ display: page === 'settings' ? 'block' : 'none' }}>
+            <SettingsPage theme={theme} toggleTheme={toggleTheme} handleLogout={handleLogout} username={username} />
+          </div>
         </div>
       </div>
     </div>

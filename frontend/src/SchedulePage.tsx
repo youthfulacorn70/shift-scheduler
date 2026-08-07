@@ -570,7 +570,9 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
                               theme === 'dark' ? 'bg-indigo-950 hover:bg-indigo-900' : 'bg-indigo-50 hover:bg-indigo-100'
                             }`}
                           >
-                            <div className={`font-semibold truncate ${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-700'}`}>{entry.employee}</div>
+                            <div className={`font-semibold truncate ${theme === 'dark' ? 'text-indigo-300' : 'text-indigo-700'}`}>
+                              {entry.employee}{entry.role_name && <span className="font-normal opacity-70"> · {roleLabel(entry.role_name)}</span>}
+                            </div>
                             <div className={subtext}>{entry.start_time.slice(0,5)} – {entry.end_time.slice(0,5)}</div>
                             {entry.role_name && (
                               <div className={`text-xs mt-0.5 px-1 py-0.5 rounded inline-block ${theme === 'dark' ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>{roleLabel(entry.role_name)}</div>
