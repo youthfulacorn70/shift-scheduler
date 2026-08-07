@@ -1051,3 +1051,64 @@ def create_starter_shift_templates(manager_id, role_ids):
             if template_id:
                 template_ids.append(template_id)
     return template_ids
+
+def get_ratings_for_employees(employee_ids):
+    """Fetches ratings for a whole list of employees in one round-trip instead of one per employee."""
+    if not employee_ids:
+        return {}
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT employee_id, category, score FROM ratings WHERE employee_id = ANY(%s);",
+        (employee_ids,)
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    release_connection(conn)
+
+    result = {emp_id: {} for emp_id in employee_ids}
+    for emp_id, category, score in rows:
+        result[emp_id][category] = float(score)
+    return result
+
+
+def get_availability_for_employees(employee_ids):
+    """Fetches recurring availability days for a whole list of employees in one round-trip."""
+    if not employee_ids:
+        return {}
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT employee_id, day_name FROM availability WHERE employee_id = ANY(%s) AND type = 'recurring' AND status = 'available';",
+        (employee_ids,)
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    release_connection(conn)
+
+    result = {emp_id: [] for emp_id in employee_ids}
+    for emp_id, day_name in rows:
+        result[emp_id].append(day_name)
+    return result
+
+
+def get_roles_for_employees(employee_ids):
+    """Fetches role names for a whole list of employees in one round-trip."""
+    if not employee_ids:
+        return {}
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT employee_roles.employee_id, roles.name
+        FROM employee_roles
+        JOIN roles ON employee_roles.role_id = roles.id
+        WHERE employee_roles.employee_id = ANY(%s);
+    """, (employee_ids,))
+    rows = cursor.fetchall()
+    cursor.close()
+    release_connection(conn)
+
+    result = {emp_id: [] for emp_id in employee_ids}
+    for emp_id, role_name in rows:
+        result[emp_id].append(role_name)
+    return result
