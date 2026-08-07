@@ -616,12 +616,14 @@ class SignupRequest(BaseModel):
 @app.post("/auth/signup")
 @limiter.limit("5/minute")
 async def signup(request: Request, data: SignupRequest):
-    existing = get_user_by_username(data.username)
+    username = data.username.lower()
+
+    existing = get_user_by_username(username)
     if existing:
         return {"error": "Username already taken"}
 
     hashed = hash_password(data.password)
-    manager_id = create_user(data.username, hashed, "manager")
+    manager_id = create_user(username, hashed, "manager")
 
     role_ids = signup_new_manager(manager_id)
     template_ids = create_starter_shift_templates(manager_id, role_ids)
