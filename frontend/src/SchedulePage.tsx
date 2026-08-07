@@ -130,7 +130,7 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
 
   useEffect(() => {
     const start = toDateString(selectedWeekStart)
-    const end = toDateString(addDays(selectedWeekStart, 6))
+    const end = toDateString(addDays(selectedWeekStart, 13))
     fetchSchedule()
     fetchUnassigned(start, end)
     fetchConflicts()
