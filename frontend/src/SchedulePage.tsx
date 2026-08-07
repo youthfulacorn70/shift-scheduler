@@ -61,7 +61,7 @@ const ROLE_KEYS: Record<string, string> = {
   'Cleaner': 'role.cleaner',
 }
 
-function SchedulePage({ theme = 'light' }: { theme?: string }) {
+function SchedulePage({ theme = 'light', active = true }: { theme?: string, active?: boolean }) {
   const { t } = useTranslation()
   const roleLabel = (role: string) => t(ROLE_KEYS[role] || role)
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([])
@@ -128,13 +128,14 @@ function SchedulePage({ theme = 'light' }: { theme?: string }) {
 
   const weeksToShow = [selectedWeekStart, addDays(selectedWeekStart, 7)]
 
-  useEffect(() => {
-    const start = toDateString(selectedWeekStart)
-    const end = toDateString(addDays(selectedWeekStart, 13))
-    fetchSchedule()
-    fetchUnassigned(start, end)
-    fetchConflicts()
-  }, [selectedWeekStart])
+useEffect(() => {
+  if (!active) return
+  const start = toDateString(selectedWeekStart)
+  const end = toDateString(addDays(selectedWeekStart, 13))
+  fetchSchedule()
+  fetchUnassigned(start, end)
+  fetchConflicts()
+}, [selectedWeekStart, active])
 
   const openEditDay = (dateStr: string) => {
     setEditingDay(dateStr)
