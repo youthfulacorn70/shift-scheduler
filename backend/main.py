@@ -139,8 +139,11 @@ async def employee_usage(employee_id: int, request: Request):
 @app.delete("/employees/{employee_id}")
 async def remove_employee(employee_id: int, request: Request):
     manager_id = get_manager_id_from_request(request)
-    delete_employee(employee_id, manager_id)
-    return {"message": "Employee deleted"}
+    try:
+        delete_employee(employee_id, manager_id)
+        return {"message": "Employee deleted"}
+    except Exception as e:
+        return {"error": "Could not delete employee. They may be linked to other records."}
 
 @app.post("/shifts")
 async def create_shift(request: Request, data: dict):
