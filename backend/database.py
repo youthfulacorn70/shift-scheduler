@@ -43,12 +43,12 @@ def get_all_employees(manager_id):
     release_connection(conn)
     return rows
 
-def get_employee_usage(employee_id):
+def get_employee_usage(employee_id, manager_id):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT COUNT(*) FROM schedule WHERE employee_id = %s;",
-        (employee_id,)
+        "SELECT COUNT(*) FROM schedule WHERE employee_id = %s AND manager_id = %s;",
+        (employee_id, manager_id)
     )
     shift_count = cursor.fetchone()[0]
     cursor.execute(
@@ -60,15 +60,16 @@ def get_employee_usage(employee_id):
     release_connection(conn)
     return {"shift_count": shift_count, "has_login": has_login}
 
-def delete_employee(employee_id):
+def delete_employee(employee_id, manager_id):
     conn = get_connection()
     cursor = conn.cursor()
+    cursor.execute("DELETE FROM shift_trades WHERE requester_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM schedule WHERE employee_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM ratings WHERE employee_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM availability WHERE employee_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM employee_roles WHERE employee_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM users WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM employees WHERE id = %s;", (employee_id,))
+    cursor.execute("DELETE FROM employees WHERE id = %s AND manager_id = %s;", (employee_id, manager_id))
     conn.commit()
     cursor.close()
     release_connection(conn)
