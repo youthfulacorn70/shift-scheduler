@@ -1,5 +1,6 @@
 import psycopg2
 from psycopg2 import pool
+from psycopg2.extras import execute_values
 import os
 
 connection_pool = psycopg2.pool.ThreadedConnectionPool(
@@ -974,7 +975,7 @@ def signup_new_manager(manager_id):
         role_ids[role_name] = cursor.fetchone()[0]
 
     roster = []
-    for role_name, count in [('Host', 2), ('Server', 4), ('Cook', 4)]:
+    for role_name, count in [('Host', 2), ('Server', 5), ('Cook', 4)]:
         cursor.execute(
             "SELECT name, role_name, starting_rating, desired_hours FROM employee_pool WHERE role_name = %s ORDER BY RANDOM() LIMIT %s;",
             (role_name, count)
@@ -984,35 +985,54 @@ def signup_new_manager(manager_id):
     categories = ['Punctuality', 'Reliability', 'Speed', 'Customer Attitude', 'Teamwork']
     weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
+    # step 1: insert all 10 employees, one at a time — we need each new id back,
+    # so this part can't be batched the same way
+    employee_ids = []
+    employee_role_pairs = []
     for name, role_name, starting_rating, desired_hours in roster:
         cursor.execute(
             "INSERT INTO employees (name, desired_hours, manager_id) VALUES (%s, %s, %s) RETURNING id;",
             (name, desired_hours, manager_id)
         )
         employee_id = cursor.fetchone()[0]
+        employee_ids.append((employee_id, role_name, starting_rating))
+        employee_role_pairs.append((employee_id, role_ids[role_name]))
 
-        cursor.execute(
-            "INSERT INTO employee_roles (employee_id, role_id) VALUES (%s, %s);",
-            (employee_id, role_ids[role_name])
-        )
+    # step 2: batch-insert all employee_roles in one round-trip instead of 10
+    execute_values(
+        cursor,
+        "INSERT INTO employee_roles (employee_id, role_id) VALUES %s;",
+        employee_role_pairs
+    )
 
-        for category in categories:
-            cursor.execute(
-                "INSERT INTO ratings (employee_id, category, score) VALUES (%s, %s, %s);",
-                (employee_id, category, starting_rating)
-            )
+    # step 3: batch-insert all ratings in one round-trip instead of 50
+    rating_rows = [
+        (employee_id, category, starting_rating)
+        for employee_id, role_name, starting_rating in employee_ids
+        for category in categories
+    ]
+    execute_values(
+        cursor,
+        "INSERT INTO ratings (employee_id, category, score) VALUES %s;",
+        rating_rows
+    )
 
-        for day in weekdays:
-            cursor.execute(
-                "INSERT INTO availability (employee_id, type, day_name, status) VALUES (%s, 'recurring', %s, 'available');",
-                (employee_id, day)
-            )
+    # step 4: batch-insert all availability rows in one round-trip instead of 50
+    availability_rows = [
+        (employee_id, 'recurring', day, 'available')
+        for employee_id, role_name, starting_rating in employee_ids
+        for day in weekdays
+    ]
+    execute_values(
+        cursor,
+        "INSERT INTO availability (employee_id, type, day_name, status) VALUES %s;",
+        availability_rows
+    )
 
     conn.commit()
     cursor.close()
     release_connection(conn)
     return role_ids
-
 
 def create_starter_shift_templates(manager_id, role_ids):
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
