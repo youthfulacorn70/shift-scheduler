@@ -81,8 +81,11 @@ def get_manager_id_from_request(request: Request) -> int:
 
 @app.post("/auth/login")
 @limiter.limit("5/minute")
+@app.post("/auth/login")
+@limiter.limit("5/minute")
+
 async def login(request: Request, data: LoginRequest):
-    username = data.username
+    username = data.username.lower()
     password = data.password
 
     user = get_user_by_username(username)

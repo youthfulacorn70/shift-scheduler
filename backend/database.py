@@ -1,15 +1,22 @@
 import psycopg2
+from psycopg2 import pool
 import os
 
+connection_pool = psycopg2.pool.ThreadedConnectionPool(
+    minconn=1,
+    maxconn=10,
+    dbname=os.getenv("PGDATABASE", "shift_schedule"),
+    user=os.getenv("PGUSER", "mattdou"),
+    password=os.getenv("PGPASSWORD", ""),
+    host=os.getenv("PGHOST", "localhost"),
+    port=os.getenv("PGPORT", "5432")
+)
+
 def get_connection():
-    conn = psycopg2.connect(
-        dbname=os.getenv("PGDATABASE", "shift_schedule"),
-        user=os.getenv("PGUSER", "mattdou"),
-        password=os.getenv("PGPASSWORD", ""),
-        host=os.getenv("PGHOST", "localhost"),
-        port=os.getenv("PGPORT", "5432")
-    )
-    return conn
+    return connection_pool.getconn()
+
+def release_connection(conn):
+    connection_pool.putconn(conn)
 
 # === EMPLOYEES ===
 
@@ -23,7 +30,7 @@ def add_employee(name, desired_hours, manager_id):
     employee_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return employee_id
 
 def get_all_employees(manager_id):
@@ -32,7 +39,7 @@ def get_all_employees(manager_id):
     cursor.execute("SELECT id, name, desired_hours FROM employees WHERE manager_id = %s;", (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def get_employee_usage(employee_id):
@@ -49,7 +56,7 @@ def get_employee_usage(employee_id):
     )
     has_login = cursor.fetchone()[0] > 0
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return {"shift_count": shift_count, "has_login": has_login}
 
 def delete_employee(employee_id):
@@ -63,7 +70,7 @@ def delete_employee(employee_id):
     cursor.execute("DELETE FROM employees WHERE id = %s;", (employee_id,))
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 # === SHIFTS ===
 
@@ -77,7 +84,7 @@ def add_shift(day, start_time, end_time, manager_id, role_id=None):
     shift_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return shift_id
 
 def get_all_shifts(manager_id):
@@ -92,7 +99,7 @@ def get_all_shifts(manager_id):
     """, (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def update_shift(shift_id, day, start_time, end_time, manager_id, role_id=None):
@@ -104,14 +111,12 @@ def update_shift(shift_id, day, start_time, end_time, manager_id, role_id=None):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def delete_shift(shift_id, manager_id):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # check if this shift came from a template — if so, record it as excluded
-    # so it doesn't get regenerated
     cursor.execute("SELECT day, template_id FROM shifts WHERE id = %s AND manager_id = %s;", (shift_id, manager_id))
     row = cursor.fetchone()
     if row and row[1] is not None:
@@ -125,7 +130,7 @@ def delete_shift(shift_id, manager_id):
     cursor.execute("DELETE FROM shifts WHERE id = %s AND manager_id = %s;", (shift_id, manager_id))
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 # === RATINGS (dependent — scoped via employee_id, no manager_id column needed) ===
 
@@ -139,7 +144,7 @@ def add_rating(employee_id, category, score):
     rating_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rating_id
 
 def get_ratings_by_employee(employee_id):
@@ -151,7 +156,7 @@ def get_ratings_by_employee(employee_id):
     )
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 # === SCHEDULE ===
@@ -166,7 +171,7 @@ def save_schedule(shift_id, employee_id, manager_id):
     schedule_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return schedule_id
 
 def get_schedule(manager_id):
@@ -182,7 +187,7 @@ def get_schedule(manager_id):
     """, (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def get_day_overview(date_str: str, manager_id: int):
@@ -221,7 +226,7 @@ def get_day_overview(date_str: str, manager_id: int):
     all_employees = cursor.fetchall()
 
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
     from datetime import datetime
     day_name = datetime.strptime(date_str, "%Y-%m-%d").strftime("%A")
@@ -239,7 +244,7 @@ def get_day_overview(date_str: str, manager_id: int):
         """, (emp_id,))
         emp_roles = [r[0] for r in cursor2.fetchall()]
         cursor2.close()
-        conn2.close()
+        release_connection(conn2)
 
         available_employees.append({
             "id": emp_id,
@@ -256,7 +261,7 @@ def clear_schedule(manager_id):
     cursor.execute("DELETE FROM schedule WHERE manager_id = %s;", (manager_id,))
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def clear_schedule_for_week(start_date: str, end_date: str, manager_id: int):
     conn = get_connection()
@@ -271,7 +276,7 @@ def clear_schedule_for_week(start_date: str, end_date: str, manager_id: int):
     """, (manager_id, start_date, end_date))
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def week_has_schedule(start_date: str, end_date: str, manager_id: int) -> bool:
     conn = get_connection()
@@ -283,7 +288,7 @@ def week_has_schedule(start_date: str, end_date: str, manager_id: int) -> bool:
     """, (start_date, end_date, manager_id))
     count = cursor.fetchone()[0]
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return count > 0
 
 def manually_assign_shift(shift_id: int, employee_id: int, manager_id: int):
@@ -297,7 +302,7 @@ def manually_assign_shift(shift_id: int, employee_id: int, manager_id: int):
     schedule_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return schedule_id
 
 def remove_schedule_entry(schedule_id: int, manager_id: int):
@@ -306,7 +311,7 @@ def remove_schedule_entry(schedule_id: int, manager_id: int):
     cursor.execute("DELETE FROM schedule WHERE id = %s AND manager_id = %s;", (schedule_id, manager_id))
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def get_unassigned_shifts(start_date: str, end_date: str, manager_id: int):
     conn = get_connection()
@@ -322,7 +327,7 @@ def get_unassigned_shifts(start_date: str, end_date: str, manager_id: int):
     """, (manager_id, start_date, end_date))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def get_shift_assignment(shift_id: int):
@@ -336,13 +341,12 @@ def get_shift_assignment(shift_id: int):
     """, (shift_id,))
     row = cursor.fetchone()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return row[0] if row else None
 
 # === AVAILABILITY — dependent, scoped via employee_id, unchanged ===
 
 def add_recurring_availability(employee_id, day_name, status='available'):
-    """Adds or updates a recurring availability rule for a day of the week."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -351,10 +355,9 @@ def add_recurring_availability(employee_id, day_name, status='available'):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def add_specific_availability(employee_id, specific_date, status):
-    """Adds a one-off override for a specific date, e.g. unavailable this one Monday."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -364,11 +367,10 @@ def add_specific_availability(employee_id, specific_date, status):
     new_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return new_id
 
 def get_availability(employee_id):
-    """Returns both recurring days and specific overrides for an employee, separated out."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -387,11 +389,10 @@ def get_availability(employee_id):
     ]
 
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return {"recurring_days": recurring_days, "specific_overrides": specific_overrides}
 
 def delete_availability(employee_id):
-    """Wipes ALL recurring rules for an employee — used when saving a fresh set of checkboxes."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -400,10 +401,9 @@ def delete_availability(employee_id):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def delete_specific_availability(override_id):
-    """Removes a single specific-date override by its id."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -412,18 +412,12 @@ def delete_specific_availability(override_id):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def get_availability_for_date(employee_id, date_str, day_name):
-    """
-    Used by the scheduling algorithm. Checks for a specific override on this exact date first —
-    if found, that wins. Otherwise falls back to the recurring rule for this day of the week.
-    Returns True if available, False if not.
-    """
     conn = get_connection()
     cursor = conn.cursor()
 
-    # specific override always wins if it exists
     cursor.execute(
         "SELECT status FROM availability WHERE employee_id = %s AND type = 'specific' AND specific_date = %s;",
         (employee_id, date_str)
@@ -431,27 +425,21 @@ def get_availability_for_date(employee_id, date_str, day_name):
     specific = cursor.fetchone()
     if specific:
         cursor.close()
-        conn.close()
+        release_connection(conn)
         return specific[0] == 'available'
 
-    # fall back to recurring rule
     cursor.execute(
         "SELECT status FROM availability WHERE employee_id = %s AND type = 'recurring' AND day_name = %s;",
         (employee_id, day_name)
     )
     recurring = cursor.fetchone()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     if recurring:
         return recurring[0] == 'available'
-    return False  # no rule at all means unavailable by default
+    return False
 
 def get_schedule_conflicts(manager_id):
-    """
-    Returns a set of schedule entry IDs where the assigned employee
-    is marked unavailable for that shift's date.
-    Used to badge conflicts on the Schedule calendar.
-    """
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -463,7 +451,7 @@ def get_schedule_conflicts(manager_id):
     """, (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
     conflict_ids = set()
     for schedule_id, employee_id, day in rows:
@@ -485,7 +473,7 @@ def add_role(name, manager_id):
     role_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return role_id
 
 def get_all_roles(manager_id):
@@ -494,7 +482,7 @@ def get_all_roles(manager_id):
     cursor.execute("SELECT id, name FROM roles WHERE manager_id = %s;", (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def get_role_usage(role_id: int):
@@ -511,7 +499,7 @@ def get_role_usage(role_id: int):
     )
     shift_count = cursor.fetchone()[0]
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return {"employee_count": employee_count, "shift_count": shift_count}
 
 def delete_role(role_id: int, manager_id: int):
@@ -522,7 +510,7 @@ def delete_role(role_id: int, manager_id: int):
     cursor.execute("DELETE FROM roles WHERE id = %s AND manager_id = %s;", (role_id, manager_id))
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 # === EMPLOYEE ROLES — dependent, scoped via employee_id, unchanged ===
 
@@ -535,7 +523,7 @@ def assign_role_to_employee(employee_id, role_id):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def get_employee_roles(employee_id):
     conn = get_connection()
@@ -551,7 +539,7 @@ def get_employee_roles(employee_id):
     )
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def remove_employee_role(employee_id, role_id):
@@ -563,7 +551,7 @@ def remove_employee_role(employee_id, role_id):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 # === USERS / AUTH — untouched, not manager-scoped the same way ===
 
@@ -577,7 +565,7 @@ def create_user(username, password_hash, role, employee_id=None):
     user_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return user_id
 
 def reset_user_password(employee_id, new_password_hash):
@@ -589,7 +577,7 @@ def reset_user_password(employee_id, new_password_hash):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def get_user_by_username(username):
     conn = get_connection()
@@ -600,7 +588,7 @@ def get_user_by_username(username):
     )
     row = cursor.fetchone()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return row
 
 def get_user_by_employee_id(employee_id):
@@ -612,7 +600,7 @@ def get_user_by_employee_id(employee_id):
     )
     row = cursor.fetchone()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return row
 
 def get_schedule_by_employee(employee_id: int):
@@ -627,7 +615,7 @@ def get_schedule_by_employee(employee_id: int):
     """, (employee_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 # === SHIFT TRADES — dependent, scoped via shift/employee, unchanged ===
@@ -642,7 +630,7 @@ def create_shift_trade(requester_id: int, shift_id: int, offered_shift_id=None):
     trade_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return trade_id
 
 def get_pending_trades(manager_id: int):
@@ -674,7 +662,7 @@ def get_pending_trades(manager_id: int):
     """, (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def update_trade_employee_status(trade_id: int, status: str):
@@ -686,7 +674,7 @@ def update_trade_employee_status(trade_id: int, status: str):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def update_trade_manager_status(trade_id: int, status: str):
     conn = get_connection()
@@ -723,7 +711,7 @@ def update_trade_manager_status(trade_id: int, status: str):
                 )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
 def get_trades_for_employee(employee_id: int):
     conn = get_connection()
@@ -747,7 +735,7 @@ def get_trades_for_employee(employee_id: int):
 """, (employee_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def get_employee_weekly_hours(employee_id: int, start_date: str, end_date: str) -> float:
@@ -764,14 +752,10 @@ def get_employee_weekly_hours(employee_id: int, start_date: str, end_date: str) 
     """, (employee_id, start_date, end_date))
     result = cursor.fetchone()[0]
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return float(result) if result else 0.0
 
 def get_potential_substitutes(shift_id: int):
-    """
-    Updated to use get_availability_for_date logic inline via SQL —
-    checks specific override first, falls back to recurring.
-    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
@@ -791,14 +775,13 @@ def get_potential_substitutes(shift_id: int):
     """, (shift_id,))
     candidates = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
 
-    # filter candidates down to only those actually available on that date
     day_name = None
     result = []
     for emp_id, emp_name, shift_day in candidates:
         if day_name is None:
-            day_name = shift_day.strftime('%A')  # e.g. "Monday"
+            day_name = shift_day.strftime('%A')
         if get_availability_for_date(emp_id, str(shift_day), day_name):
             result.append((emp_id, emp_name))
 
@@ -816,7 +799,7 @@ def create_password_reset(employee_id):
     reset_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return reset_id
 
 def check_pending_reset(username):
@@ -834,14 +817,13 @@ def check_pending_reset(username):
     """, (username,))
     row = cursor.fetchone()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return row[0] if row else None
 
 def complete_password_reset(username, new_password_hash):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # re-check eligibility server-side, never trust the earlier check alone
     cursor.execute("""
         SELECT password_resets.id, password_resets.employee_id
         FROM password_resets
@@ -856,7 +838,7 @@ def complete_password_reset(username, new_password_hash):
 
     if not row:
         cursor.close()
-        conn.close()
+        release_connection(conn)
         return False
 
     reset_id, employee_id = row
@@ -871,7 +853,7 @@ def complete_password_reset(username, new_password_hash):
     )
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return True
 
 # === SHIFT TEMPLATES ===
@@ -880,7 +862,6 @@ def create_shift_template(day_name, start_time, end_time, manager_id, role_id=No
     conn = get_connection()
     cursor = conn.cursor()
 
-    # prevent creating an identical recurring shift twice, scoped to this manager
     cursor.execute("""
         SELECT id FROM shift_templates
         WHERE day_name = %s AND start_time = %s AND end_time = %s
@@ -890,8 +871,8 @@ def create_shift_template(day_name, start_time, end_time, manager_id, role_id=No
     existing = cursor.fetchone()
     if existing:
         cursor.close()
-        conn.close()
-        return None  # signal duplicate — caller decides what to do
+        release_connection(conn)
+        return None
 
     cursor.execute(
         "INSERT INTO shift_templates (day_name, start_time, end_time, role_id, manager_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;",
@@ -900,18 +881,11 @@ def create_shift_template(day_name, start_time, end_time, manager_id, role_id=No
     template_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return template_id
 
 
 def generate_shifts_from_template(template_id, horizon_weeks=1):
-    """
-    Ensures shifts exist for this template out to `horizon_weeks` from today.
-    Only creates shifts for dates that don't already have one from this template
-    (so calling this repeatedly is always safe — it just fills in gaps).
-    manager_id is pulled from the template itself, since shift_templates is
-    already manager-scoped — no need to pass it in separately.
-    """
     from datetime import datetime, timedelta
 
     conn = get_connection()
@@ -922,9 +896,9 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
         (template_id,)
     )
     template = cursor.fetchone()
-    if not template or not template[4]:  # doesn't exist or inactive
+    if not template or not template[4]:
         cursor.close()
-        conn.close()
+        release_connection(conn)
         return []
 
     day_name, start_time, end_time, role_id, active, manager_id = template
@@ -938,7 +912,6 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
     today = datetime.utcnow().date()
     horizon_end = today + timedelta(weeks=horizon_weeks)
 
-    # find all dates matching this day_name between today and horizon_end
     dates_to_check = []
     current = today
     while current < horizon_end:
@@ -946,7 +919,6 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
             dates_to_check.append(current)
         current += timedelta(days=1)
 
-    # find which of these dates already have a shift from this template
     cursor.execute(
         "SELECT day FROM shifts WHERE template_id = %s AND day >= %s;",
         (template_id, today)
@@ -970,7 +942,7 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
 
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return created_ids
 
 def get_all_shift_templates(manager_id):
@@ -986,18 +958,10 @@ def get_all_shift_templates(manager_id):
     """, (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return rows
 
 def signup_new_manager(manager_id):
-    """
-    Called right after a new manager's user account is created.
-    Copies a starter roster from employee_pool: 2 Host, 4 Server, 4 Cook.
-    Creates the three roles, links each employee to their role, seeds
-    Mon-Fri availability (so they're schedulable immediately), and gives
-    each employee 5 rating categories all set to their pool starting_rating.
-    Returns a dict of {role_name: role_id} for use building the shift template.
-    """
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -1046,16 +1010,11 @@ def signup_new_manager(manager_id):
 
     conn.commit()
     cursor.close()
-    conn.close()
+    release_connection(conn)
     return role_ids
 
 
 def create_starter_shift_templates(manager_id, role_ids):
-    """
-    Creates a 5-shift daily template (1 Host, 2 Server, 2 Cook) for Mon-Fri.
-    Reuses the existing create_shift_template function, which already
-    handles duplicate-checking and manager scoping.
-    """
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
     shift_defs = [
         ('09:00:00', '17:00:00', 'Host'),
