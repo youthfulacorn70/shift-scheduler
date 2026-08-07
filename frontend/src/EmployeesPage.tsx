@@ -150,15 +150,22 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   }
 
   const confirmDeleteEmployee = () => {
-    if (!deletingEmployee) return
-    apiFetch(`/employees/${deletingEmployee.id}`, { method: 'DELETE' })
-      .then(() => {
-        setEmployees(employees.filter(e => e.id !== deletingEmployee.id))
-        if (selectedEmp?.id === deletingEmployee.id) setSelectedEmp(null)
+  if (!deletingEmployee) return
+  apiFetch(`/employees/${deletingEmployee.id}`, { method: 'DELETE' })
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) {
+        alert(data.error)  // simple for now — could be a nicer inline message later
         setDeletingEmployee(null)
         setDeleteEmployeeInfo(null)
-      })
-  }
+        return
+      }
+      setEmployees(employees.filter(e => e.id !== deletingEmployee.id))
+      if (selectedEmp?.id === deletingEmployee.id) setSelectedEmp(null)
+      setDeletingEmployee(null)
+      setDeleteEmployeeInfo(null)
+    })
+}
 
   const addSpecificOverride = () => {
     if (!selectedEmp || !newOverrideDate) return
