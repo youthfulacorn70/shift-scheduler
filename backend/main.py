@@ -1,4 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from models import Employee, Shift, calculate_overall_rating
 from algorithm import generate_schedule
 from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts, signup_new_manager, create_starter_shift_templates, get_ratings_for_employees, get_availability_for_employees, get_roles_for_employees
@@ -11,7 +13,8 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
 
 class LoginRequest(BaseModel):
     username: str = Field(..., max_length=20)
@@ -97,6 +100,11 @@ async def login(request: Request, data: LoginRequest):
 
     token = create_token({"sub": user[1], "role": user[3], "employee_id": user[4], "id": user[0]})
     return {"token": token, "role": user[3], "username": user[1]}
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    first_error = exc.errors()[0]
+    return JSONResponse(status_code=200, content={"error": first_error["msg"]})
 
 @app.get("/schedule/employee/{employee_id}")
 async def get_employee_schedule(employee_id: int):
@@ -615,7 +623,16 @@ def get_schedule_conflicts_route(request: Request):
 
 class SignupRequest(BaseModel):
     username: str = Field(..., max_length=20)
-    password: str = Field(..., max_length=50)
+    password: str = Field(..., min_length=8, max_length=50)
+
+    @field_validator('password')
+    @classmethod
+    def password_strength(cls, v):
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one number.')
+        if not any(c.isalpha() for c in v):
+            raise ValueError('Password must contain at least one letter.')
+        return v
 
 @app.post("/auth/signup")
 @limiter.limit("5/minute")
