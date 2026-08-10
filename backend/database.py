@@ -63,17 +63,22 @@ def get_employee_usage(employee_id, manager_id):
 def delete_employee(employee_id, manager_id):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM shift_trades WHERE requester_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM password_resets WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM schedule WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM ratings WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM availability WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM employee_roles WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM users WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM employees WHERE id = %s AND manager_id = %s;", (employee_id, manager_id))
-    conn.commit()
-    cursor.close()
-    release_connection(conn)
+    try:
+        cursor.execute("DELETE FROM shift_trades WHERE requester_id = %s;", (employee_id,))
+        cursor.execute("DELETE FROM password_resets WHERE employee_id = %s;", (employee_id,))
+        cursor.execute("DELETE FROM schedule WHERE employee_id = %s;", (employee_id,))
+        cursor.execute("DELETE FROM ratings WHERE employee_id = %s;", (employee_id,))
+        cursor.execute("DELETE FROM availability WHERE employee_id = %s;", (employee_id,))
+        cursor.execute("DELETE FROM employee_roles WHERE employee_id = %s;", (employee_id,))
+        cursor.execute("DELETE FROM users WHERE employee_id = %s;", (employee_id,))
+        cursor.execute("DELETE FROM employees WHERE id = %s AND manager_id = %s;", (employee_id, manager_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        release_connection(conn)
 
 # === SHIFTS ===
 
