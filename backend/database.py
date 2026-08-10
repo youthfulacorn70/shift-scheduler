@@ -64,6 +64,7 @@ def delete_employee(employee_id, manager_id):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM shift_trades WHERE requester_id = %s;", (employee_id,))
+    cursor.execute("DELETE FROM password_resets WHERE employee_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM schedule WHERE employee_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM ratings WHERE employee_id = %s;", (employee_id,))
     cursor.execute("DELETE FROM availability WHERE employee_id = %s;", (employee_id,))
