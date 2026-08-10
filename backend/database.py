@@ -1120,16 +1120,3 @@ def get_roles_for_employees(employee_ids):
         result[emp_id].append(role_name)
     return result
 
-def delete_employee(employee_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM shift_trades WHERE requester_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM schedule WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM ratings WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM availability WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM employee_roles WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM users WHERE employee_id = %s;", (employee_id,))
-    cursor.execute("DELETE FROM employees WHERE id = %s;", (employee_id,))
-    conn.commit()
-    cursor.close()
-    release_connection(conn)
