@@ -143,6 +143,7 @@ async def remove_employee(employee_id: int, request: Request):
         delete_employee(employee_id, manager_id)
         return {"message": "Employee deleted"}
     except Exception as e:
+        print(f"Delete employee failed: {e}")
         return {"error": "Could not delete employee. They may be linked to other records."}
 
 @app.post("/shifts")
