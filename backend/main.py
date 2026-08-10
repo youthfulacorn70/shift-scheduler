@@ -84,9 +84,6 @@ def get_manager_id_from_request(request: Request) -> int:
 
 @app.post("/auth/login")
 @limiter.limit("5/minute")
-@app.post("/auth/login")
-@limiter.limit("5/minute")
-
 async def login(request: Request, data: LoginRequest):
     username = data.username.lower()
     password = data.password
@@ -687,5 +684,5 @@ async def signup(request: Request, data: SignupRequest):
             if emp_id and shift.shift_id:
                 save_schedule(shift.shift_id, emp_id, manager_id)
 
-    token = create_token({"sub": data.username, "role": "manager", "employee_id": None, "id": manager_id})
-    return {"token": token, "role": "manager", "username": data.username}
+    token = create_token({"sub": username, "role": "manager", "employee_id": None, "id": manager_id})
+    return {"token": token, "role": "manager", "username": username}
