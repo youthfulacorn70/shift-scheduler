@@ -60,6 +60,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
   const [recurringRoleId, setRecurringRoleId] = useState<number | null>(null)
   const [recurringError, setRecurringError] = useState('')
   const [activeTab, setActiveTab] = useState<'all' | 'templates'>('all')
+  const [recurringQuantity, setRecurringQuantity] = useState(1)
 
   useEffect(() => {
   apiFetch(`/shifts`)
@@ -89,7 +90,8 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
       day_name: recurringDay,
       start_time: recurringStart,
       end_time: recurringEnd,
-      role_id: recurringRoleId
+      role_id: recurringRoleId,
+      quantity: recurringQuantity
     })
   })
     .then(res => res.json())
@@ -104,6 +106,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
       setRecurringStart('')
       setRecurringEnd('')
       setRecurringRoleId(null)
+      setRecurringQuantity(1)
     })
 }
 
@@ -322,6 +325,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
           <option key={r.id} value={r.id}>{roleLabel(r.name)}</option>
         ))}
       </select>
+      {recurringError && <p className="text-red-500 text-sm mb-3">{recurringError}</p>}
 
       {recurringError && <p className="text-red-500 text-sm mb-3">{recurringError}</p>}
 
@@ -330,7 +334,7 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
           {t('shifts.create')}
         </button>
         <button
-          onClick={() => { setShowRecurringModal(false); setRecurringError('') }}
+          onClick={() => { setShowRecurringModal(false); setRecurringError(''); setRecurringQuantity(1) }}
           className={`px-4 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}
         >
           {t('shifts.cancel')}
