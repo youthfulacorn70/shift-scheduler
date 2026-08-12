@@ -1,10 +1,9 @@
 from models import Employee, Shift, calculate_overall_rating
 from datetime import datetime
-from database import get_availability_for_date  # added — checks specific overrides + recurring
 
-def generate_schedule(employees: list, shifts: list) -> list:
+def generate_schedule(employees: list, shifts: list, availability_data: dict) -> list:
     sorted_employees = sorted(employees, key=lambda emp: emp.rating, reverse=True)
-    
+
     assigned_hours = {emp.name: 0 for emp in sorted_employees}
     assigned_days = {emp.name: [] for emp in sorted_employees}
 
@@ -12,17 +11,17 @@ def generate_schedule(employees: list, shifts: list) -> list:
 
     for shift in shifts:
         shift_duration = calculate_shift_hours(shift.start_time, shift.end_time)
-        
-        # convert the shift's date to a day name so it matches recurring availability
         day_name = datetime.strptime(shift.day, "%Y-%m-%d").strftime("%A")
-        
+
         for emp in sorted_employees:
             already_working_that_day = shift.day in assigned_days[emp.name]
             would_exceed_hours = assigned_hours[emp.name] + shift_duration > emp.desired_hours
 
-            # checks specific-date override first, falls back to recurring rule —
-            # this replaces the old simple "day_name in emp.available_days" check
-            is_available = get_availability_for_date(emp.employee_id, shift.day, day_name)
+            is_available = check_availability_in_memory(
+                availability_data.get(emp.employee_id, {"recurring": {}, "specific": {}}),
+                shift.day,
+                day_name
+            )
 
             has_required_role = shift.required_role is None or shift.required_role in emp.roles
 
@@ -33,6 +32,16 @@ def generate_schedule(employees: list, shifts: list) -> list:
                 break
 
     return shifts
+
+def check_availability_in_memory(emp_availability: dict, shift_day: str, day_name: str) -> bool:
+    """Same logic as get_availability_for_date, but reads from pre-fetched data — no DB call."""
+    specific_status = emp_availability["specific"].get(shift_day)
+    if specific_status is not None:
+        return specific_status == 'available'
+    recurring_status = emp_availability["recurring"].get(day_name)
+    if recurring_status is not None:
+        return recurring_status == 'available'
+    return False
 
 def calculate_shift_hours(start_time: str, end_time: str) -> float:
     start_parts = start_time.split(':')

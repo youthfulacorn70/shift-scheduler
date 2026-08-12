@@ -3,7 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from models import Employee, Shift, calculate_overall_rating
 from algorithm import generate_schedule
-from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts, signup_new_manager, create_starter_shift_templates, get_ratings_for_employees, get_availability_for_employees, get_roles_for_employees
+from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts, signup_new_manager, create_starter_shift_templates, get_ratings_for_employees, get_availability_for_employees, get_roles_for_employees, get_full_availability_for_employees
 import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
@@ -209,10 +209,10 @@ async def create_schedule(request: Request, data: dict):
     emp_rows = get_all_employees(manager_id)
     employee_ids = [row[0] for row in emp_rows]
 
-    # one query each, instead of one query per employee per category
     ratings_by_employee = get_ratings_for_employees(employee_ids)
     availability_by_employee = get_availability_for_employees(employee_ids)
     roles_by_employee = get_roles_for_employees(employee_ids)
+    full_availability_data = get_full_availability_for_employees(employee_ids)
 
     employees = []
     for row in emp_rows:
@@ -249,7 +249,7 @@ async def create_schedule(request: Request, data: dict):
             )
             shifts.append(shift)
 
-    completed_schedule = generate_schedule(employees, shifts)
+    completed_schedule = generate_schedule(employees, shifts, full_availability_data)
 
     result = []
     for shift in completed_schedule:
@@ -582,17 +582,19 @@ async def create_user_account(request: Request, data: dict):
 @app.post("/shift-templates")
 async def create_template(request: Request, data: dict):
     manager_id = get_manager_id_from_request(request)
-    template_id = create_shift_template(
+    template_ids = create_shift_template(
         data["day_name"],
         data["start_time"],
         data["end_time"],
         manager_id,
-        data.get("role_id", None)
+        data.get("role_id", None),
+        data.get("quantity", 1)
     )
-    if template_id is None:
-        return {"error": "An identical recurring shift already exists."}
-    generate_shifts_from_template(template_id)
-    return {"id": template_id, "message": "Recurring shift created"}
+    if template_ids is None:
+        return {"error": "You already have this many of this shift."}
+    for template_id in template_ids:
+        generate_shifts_from_template(template_id)
+    return {"ids": template_ids, "message": "Recurring shift created"}
 
 
 @app.get("/shift-templates")
@@ -653,6 +655,9 @@ async def signup(request: Request, data: SignupRequest):
     end_date = (today + timedelta(days=13)).strftime("%Y-%m-%d")
 
     emp_rows = get_all_employees(manager_id)
+    employee_ids = [row[0] for row in emp_rows]
+    full_availability_data = get_full_availability_for_employees(employee_ids)
+
     employees = []
     for row in emp_rows:
         emp_id, emp_name, emp_desired_hours = row
@@ -677,7 +682,7 @@ async def signup(request: Request, data: SignupRequest):
                 required_role=str(row[5]) if row[5] else None, shift_id=row[0]
             ))
 
-    completed_schedule = generate_schedule(employees, shifts)
+    completed_schedule = generate_schedule(employees, shifts, full_availability_data)
     for shift in completed_schedule:
         if shift.employee_name:
             emp_id = next((r[0] for r in emp_rows if r[1] == shift.employee_name), None)

@@ -866,31 +866,36 @@ def complete_password_reset(username, new_password_hash):
 
 # === SHIFT TEMPLATES ===
 
-def create_shift_template(day_name, start_time, end_time, manager_id, role_id=None):
+def create_shift_template(day_name, start_time, end_time, manager_id, role_id=None, quantity=1):
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute("""
-        SELECT id FROM shift_templates
+        SELECT COUNT(*) FROM shift_templates
         WHERE day_name = %s AND start_time = %s AND end_time = %s
         AND active = TRUE AND manager_id = %s
         AND (role_id = %s OR (role_id IS NULL AND %s IS NULL));
     """, (day_name, start_time, end_time, manager_id, role_id, role_id))
-    existing = cursor.fetchone()
-    if existing:
+    existing_count = cursor.fetchone()[0]
+
+    if existing_count >= quantity:
         cursor.close()
         release_connection(conn)
         return None
 
-    cursor.execute(
-        "INSERT INTO shift_templates (day_name, start_time, end_time, role_id, manager_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;",
-        (day_name, start_time, end_time, role_id, manager_id)
-    )
-    template_id = cursor.fetchone()[0]
+    template_ids = []
+    to_create = quantity - existing_count
+    for _ in range(to_create):
+        cursor.execute(
+            "INSERT INTO shift_templates (day_name, start_time, end_time, role_id, manager_id) VALUES (%s, %s, %s, %s, %s) RETURNING id;",
+            (day_name, start_time, end_time, role_id, manager_id)
+        )
+        template_ids.append(cursor.fetchone()[0])
+
     conn.commit()
     cursor.close()
     release_connection(conn)
-    return template_id
+    return template_ids
 
 
 def generate_shifts_from_template(template_id, horizon_weeks=1):
@@ -1118,5 +1123,39 @@ def get_roles_for_employees(employee_ids):
     result = {emp_id: [] for emp_id in employee_ids}
     for emp_id, role_name in rows:
         result[emp_id].append(role_name)
+    return result
+
+def get_full_availability_for_employees(employee_ids):
+    """
+    Fetches BOTH recurring rules and specific-date overrides for a whole list
+    of employees in two round-trips total, instead of one query per employee
+    per shift inside the scheduling algorithm.
+    """
+    if not employee_ids:
+        return {}
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT employee_id, day_name, status FROM availability WHERE employee_id = ANY(%s) AND type = 'recurring';",
+        (employee_ids,)
+    )
+    recurring_rows = cursor.fetchall()
+
+    cursor.execute(
+        "SELECT employee_id, specific_date, status FROM availability WHERE employee_id = ANY(%s) AND type = 'specific';",
+        (employee_ids,)
+    )
+    specific_rows = cursor.fetchall()
+
+    cursor.close()
+    release_connection(conn)
+
+    result = {emp_id: {"recurring": {}, "specific": {}} for emp_id in employee_ids}
+    for emp_id, day_name, status in recurring_rows:
+        result[emp_id]["recurring"][day_name] = status
+    for emp_id, specific_date, status in specific_rows:
+        result[emp_id]["specific"][str(specific_date)] = status
+
     return result
 
