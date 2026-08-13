@@ -939,7 +939,7 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
     existing_dates = {row[0] for row in cursor.fetchall()}
 
     cursor.execute(
-        "SELECT excluded_date FROM template_exclusions WHERE template_id = %s;",
+        "SELECT excluded_date FROM template_exclusions WHERE template_id = ANY(%s);",
         (template_id,)
     )
     excluded_dates = {row[0] for row in cursor.fetchall()}
