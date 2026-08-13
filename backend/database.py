@@ -905,7 +905,7 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT day_name, start_time, end_time, role_id, active, manager_id FROM shift_templates WHERE id = ANY(%s);",
+        "SELECT day_name, start_time, end_time, role_id, active, manager_id FROM shift_templates WHERE id = %s;",
         (template_id,)
     )
     template = cursor.fetchone()
@@ -933,13 +933,13 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
         current += timedelta(days=1)
 
     cursor.execute(
-        "SELECT day FROM shifts WHERE template_id = ANY(%s) AND day >= %s;",
+        "SELECT day FROM shifts WHERE template_id = %s AND day >= %s;",
         (template_id, today)
     )
     existing_dates = {row[0] for row in cursor.fetchall()}
 
     cursor.execute(
-        "SELECT excluded_date FROM template_exclusions WHERE template_id = ANY(%s);",
+        "SELECT excluded_date FROM template_exclusions WHERE template_id = %s;",
         (template_id,)
     )
     excluded_dates = {row[0] for row in cursor.fetchall()}
