@@ -337,7 +337,6 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
       />
 
       {recurringError && <p className="text-red-500 text-sm mb-3">{recurringError}</p>}
-  
 
       <div className="flex gap-3">
         <button onClick={createRecurringShift} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">

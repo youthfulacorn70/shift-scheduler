@@ -622,17 +622,19 @@ def get_schedule_conflicts_route(request: Request):
 
 class SignupRequest(BaseModel):
     username: str = Field(..., max_length=20)
-    password: str = Field(..., min_length=8, max_length=50)
+    password: str = Field(..., max_length=50)
 
     @field_validator('password')
     @classmethod
     def password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters.')
         if not any(c.isdigit() for c in v):
             raise ValueError('Password must contain at least one number.')
         if not any(c.isalpha() for c in v):
             raise ValueError('Password must contain at least one letter.')
         return v
-
+    
 @app.post("/auth/signup")
 @limiter.limit("5/minute")
 async def signup(request: Request, data: SignupRequest):
