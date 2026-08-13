@@ -933,7 +933,7 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
         current += timedelta(days=1)
 
     cursor.execute(
-        "SELECT day FROM shifts WHERE template_id = %s AND day >= %s;",
+        "SELECT day FROM shifts WHERE template_id = ANY(%s) AND day >= %s;",
         (template_id, today)
     )
     existing_dates = {row[0] for row in cursor.fetchall()}
