@@ -905,7 +905,7 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT day_name, start_time, end_time, role_id, active, manager_id FROM shift_templates WHERE id = %s;",
+        "SELECT day_name, start_time, end_time, role_id, active, manager_id FROM shift_templates WHERE id = ANY(%s);",
         (template_id,)
     )
     template = cursor.fetchone()
