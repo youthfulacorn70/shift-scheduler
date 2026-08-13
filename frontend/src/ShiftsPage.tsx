@@ -325,7 +325,19 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
           <option key={r.id} value={r.id}>{roleLabel(r.name)}</option>
         ))}
       </select>
+
+      <label className={`text-xs mb-1 block ${subtext}`}>How many people?</label>
+      <input
+        type="number"
+        min={1}
+        max={20}
+        className={`border rounded-lg px-3 py-2 text-sm outline-none w-full mb-4 ${input}`}
+        value={recurringQuantity}
+        onChange={e => setRecurringQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+      />
+
       {recurringError && <p className="text-red-500 text-sm mb-3">{recurringError}</p>}
+  
 
       <div className="flex gap-3">
         <button onClick={createRecurringShift} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
