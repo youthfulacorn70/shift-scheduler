@@ -1059,9 +1059,9 @@ def create_starter_shift_templates(manager_id, role_ids):
     template_ids = []
     for day in days:
         for start_time, end_time, role_name in shift_defs:
-            template_id = create_shift_template(day, start_time, end_time, manager_id, role_ids[role_name])
-            if template_id:
-                template_ids.append(template_id)
+            new_ids = create_shift_template(day, start_time, end_time, manager_id, role_ids[role_name])
+            if new_ids:
+                template_ids.extend(new_ids)
     return template_ids
 
 def get_ratings_for_employees(employee_ids):
