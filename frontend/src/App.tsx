@@ -530,10 +530,10 @@ function App() {
 
         <div className="flex-1 overflow-auto p-8">
           <div style={{ display: page === 'employees' ? 'block' : 'none' }}>
-            <EmployeesPage theme={theme} />
+            <EmployeesPage theme={theme} active={page === 'employees'} />
           </div>
           <div style={{ display: page === 'shifts' ? 'block' : 'none' }}>
-            <ShiftsPage theme={theme} />
+            <ShiftsPage theme={theme} active={page === 'shifts'} />
           </div>
           <div style={{ display: page === 'schedule' ? 'block' : 'none' }}>
             <SchedulePage theme={theme} active={page === 'schedule'} />

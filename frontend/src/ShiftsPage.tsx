@@ -38,7 +38,7 @@ const ROLE_KEYS: Record<string, string> = {
   'Cleaner': 'role.cleaner',
 }
 
-function ShiftsPage({ theme = 'light' }: { theme?: string }) {
+function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active?: boolean }) {
   const { t } = useTranslation()
   const roleLabel = (role: string) => t(ROLE_KEYS[role] || role)
   const dayLabel = (day: string) => t(DAY_KEYS[day] || day)
@@ -63,16 +63,20 @@ function ShiftsPage({ theme = 'light' }: { theme?: string }) {
   const [recurringQuantity, setRecurringQuantity] = useState(1)
 
   useEffect(() => {
-  apiFetch(`/shifts`)
-    .then(res => res.json())
-    .then(data => setShifts(data))
-  apiFetch(`/roles`)
-    .then(res => res.json())
-    .then(data => setRoles(data))
-  apiFetch(`/shift-templates`)
-    .then(res => res.json())
-    .then(data => setTemplates(data))
-}, [])
+    apiFetch(`/shifts`)
+      .then(res => res.json())
+      .then(data => setShifts(data))
+    apiFetch(`/shift-templates`)
+      .then(res => res.json())
+      .then(data => setTemplates(data))
+  }, [])
+
+  useEffect(() => {
+    if (!active) return
+    apiFetch(`/roles`)
+      .then(res => res.json())
+      .then(data => setRoles(data))
+  }, [active])
 
   const formatTime = (time: string) => {
     const parts = time.split(':')

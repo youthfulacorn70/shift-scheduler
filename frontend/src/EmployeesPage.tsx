@@ -1,6 +1,7 @@
 import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
+import { X } from 'lucide-react'
 
 interface Employee {
   id: number
@@ -50,7 +51,7 @@ const CATEGORY_KEYS: Record<string, string> = {
   'Teamwork': 'category.teamwork',
 }
 
-function EmployeesPage({ theme = 'light' }: { theme?: string }) {
+function EmployeesPage({ theme = 'light', active = true }: { theme?: string, active?: boolean }) {
   const { t } = useTranslation()
   const roleLabel = (role: string) => t(ROLE_KEYS[role] || role)
   const dayLabel = (day: string) => t(DAY_KEYS[day] || day)
@@ -89,10 +90,14 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
     apiFetch(`/employees`)
       .then(res => res.json())
       .then(data => setEmployees(data))
+  }, [])
+
+  useEffect(() => {
+    if (!active) return
     apiFetch(`/roles`)
       .then(res => res.json())
       .then(data => setRoles(data))
-  }, [])
+  }, [active])
 
   const addEmployee = () => {
     apiFetch(`/employees`, {
@@ -198,14 +203,15 @@ function EmployeesPage({ theme = 'light' }: { theme?: string }) {
   }
 
   const addRating = () => {
-    const finalCategory = customCategory || category
+    const finalCategory = category === 'CUSTOM' ? customCategory : category
+    const clampedScore = Math.min(5, Math.max(0, parseFloat(score) || 0))
     apiFetch(`/ratings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         employee_id: selectedEmp?.id,
         category: finalCategory,
-        score: parseFloat(score)
+        score: clampedScore
       })
     })
       .then(res => res.json())
@@ -356,11 +362,19 @@ const triggerPasswordReset = () => {
 
           <div className="flex items-center justify-between mb-3">
             <h2 className={`text-lg font-semibold ${text}`}>{t('employees.ratingsFor')} {selectedEmp.name}</h2>
-            {averageScore && (
-              <span className={`text-sm font-semibold px-3 py-1 rounded-full ${scoreBg(parseFloat(averageScore))}`}>
-                {t('employees.avg')} {averageScore}/5
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {averageScore && (
+                <span className={`text-sm font-semibold px-3 py-1 rounded-full ${scoreBg(parseFloat(averageScore))}`}>
+                  {t('employees.avg')} {averageScore}/5
+                </span>
+              )}
+              <button
+                onClick={() => setSelectedEmp(null)}
+                className={`p-1 rounded-lg transition-colors ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-2 flex-wrap items-center mb-4">
@@ -372,19 +386,29 @@ const triggerPasswordReset = () => {
               {PRESET_CATEGORIES.map(c => (
                 <option key={c} value={c}>{categoryLabel(c)}</option>
               ))}
+              <option value="CUSTOM">{t('employees.customCategoryPlaceholder')}</option>
             </select>
-            <input
-              className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
-              placeholder={t('employees.customCategoryPlaceholder')}
-              value={customCategory}
-              onChange={e => setCustomCategory(e.target.value)}
-            />
-            <input
-              className={`border rounded-lg px-3 py-2 text-sm outline-none w-20 ${input}`}
-              placeholder={t('employees.scorePlaceholder')}
-              value={score}
-              onChange={e => setScore(e.target.value)}
-            />
+            {category === 'CUSTOM' && (
+              <input
+                className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
+                placeholder={t('employees.customCategoryPlaceholder')}
+                value={customCategory}
+                onChange={e => setCustomCategory(e.target.value)}
+              />
+            )}
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min="0"
+                max="5"
+                step="0.5"
+                className={`border rounded-lg px-3 py-2 text-sm outline-none w-16 ${input}`}
+                placeholder={t('employees.scorePlaceholder')}
+                value={score}
+                onChange={e => setScore(e.target.value)}
+              />
+              <span className={`text-sm ${subtext}`}>/5</span>
+            </div>
             <button onClick={addRating} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
               {t('employees.addRating')}
             </button>
@@ -424,22 +448,29 @@ const triggerPasswordReset = () => {
 
             {editingAvailability ? (
               <div>
-                <div className="flex gap-4 flex-wrap mb-3">
-                  {DAYS.map(day => (
-                    <label key={day} className={`flex items-center gap-1 cursor-pointer text-sm ${text}`}>
-                      <input
-                        type="checkbox"
-                        checked={availability.includes(day)}
-                        onChange={() => {
-                          const updated = availability.includes(day)
+                <div className="flex gap-2 flex-wrap mb-3">
+                  {DAYS.map(day => {
+                    const isOn = availability.includes(day)
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => {
+                          const updated = isOn
                             ? availability.filter(d => d !== day)
                             : [...availability, day]
                           setAvailability(updated)
                         }}
-                      />
-                      {dayLabel(day)}
-                    </label>
-                  ))}
+                        className={`px-3 py-1 rounded-lg border text-sm transition-colors ${
+                          isOn
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : theme === 'dark' ? 'bg-transparent text-gray-300 border-gray-600' : 'bg-white text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {dayLabel(day)}
+                      </button>
+                    )
+                  })}
                 </div>
                 <div className="flex gap-2">
                   <button
