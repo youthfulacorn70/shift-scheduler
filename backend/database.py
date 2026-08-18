@@ -898,8 +898,13 @@ def create_shift_template(day_name, start_time, end_time, manager_id, role_id=No
     return template_ids
 
 
-def generate_shifts_from_template(template_id, horizon_weeks=1):
+def generate_shifts_from_template(template_id, start_date, end_date):
     from datetime import datetime, timedelta
+
+    if isinstance(start_date, str):
+        start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+    if isinstance(end_date, str):
+        end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -922,19 +927,16 @@ def generate_shifts_from_template(template_id, horizon_weeks=1):
     }
     target_weekday = day_name_to_weekday[day_name]
 
-    today = datetime.utcnow().date()
-    horizon_end = today + timedelta(weeks=horizon_weeks)
-
     dates_to_check = []
-    current = today
-    while current < horizon_end:
+    current = start_date
+    while current <= end_date:
         if current.weekday() == target_weekday:
             dates_to_check.append(current)
         current += timedelta(days=1)
 
     cursor.execute(
-        "SELECT day FROM shifts WHERE template_id = %s AND day >= %s;",
-        (template_id, today)
+        "SELECT day FROM shifts WHERE template_id = %s AND day BETWEEN %s AND %s;",
+        (template_id, start_date, end_date)
     )
     existing_dates = {row[0] for row in cursor.fetchall()}
 

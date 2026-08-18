@@ -46,12 +46,6 @@ app.add_middleware(
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-def ensure_templates_generated(manager_id: int):
-    templates = get_all_shift_templates(manager_id)
-    for t in templates:
-        if t[6]:  # active
-            generate_shifts_from_template(t[0])
-
 def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
@@ -167,8 +161,6 @@ async def create_shift(request: Request, data: dict):
 @app.get("/shifts")
 async def list_shifts(request: Request):
     manager_id = get_manager_id_from_request(request)
-    ensure_templates_generated(manager_id)
-
     rows = get_all_shifts(manager_id)
     shifts = []
     for row in rows:
@@ -205,6 +197,11 @@ async def create_schedule(request: Request, data: dict):
     manager_id = get_manager_id_from_request(request)
     start_date = data["start_date"]
     end_date = data["end_date"]
+
+    templates = get_all_shift_templates(manager_id)
+    for t in templates:
+        if t[6]:
+            generate_shifts_from_template(t[0], start_date, end_date)
 
     emp_rows = get_all_employees(manager_id)
     employee_ids = [row[0] for row in emp_rows]
@@ -278,7 +275,6 @@ async def check_schedule(request: Request, start_date: str, end_date: str):
 @app.get("/schedule")
 async def list_schedule(request: Request):
     manager_id = get_manager_id_from_request(request)
-    ensure_templates_generated(manager_id)
     rows = get_schedule(manager_id)
     schedule = []
     for row in rows:
@@ -479,7 +475,6 @@ async def check_hours(request: Request, employee_id: int, shift_id: int):
 @app.get("/schedule/unassigned")
 async def list_unassigned_shifts(request: Request, start_date: str, end_date: str):
     manager_id = get_manager_id_from_request(request)
-    ensure_templates_generated(manager_id)
     rows = get_unassigned_shifts(start_date, end_date, manager_id)
     result = []
     for row in rows:
@@ -592,8 +587,6 @@ async def create_template(request: Request, data: dict):
     )
     if template_ids is None:
         return {"error": "You already have this many of this shift."}
-    for template_id in template_ids:
-        generate_shifts_from_template(template_id)
     return {"ids": template_ids, "message": "Recurring shift created"}
 
 
@@ -649,8 +642,13 @@ async def signup(request: Request, data: SignupRequest):
 
     role_ids = signup_new_manager(manager_id)
     template_ids = create_starter_shift_templates(manager_id, role_ids)
+
+    today = datetime.utcnow().date()
+    start_date = today.strftime("%Y-%m-%d")
+    end_date = (today + timedelta(days=13)).strftime("%Y-%m-%d")
+
     for template_id in template_ids:
-        generate_shifts_from_template(template_id)
+        generate_shifts_from_template(template_id, start_date, end_date)
 
     today = datetime.utcnow().date()
     start_date = today.strftime("%Y-%m-%d")
