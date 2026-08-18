@@ -191,7 +191,8 @@ def get_schedule(manager_id):
         JOIN employees ON schedule.employee_id = employees.id
         JOIN shifts ON schedule.shift_id = shifts.id
         LEFT JOIN roles ON shifts.role_id = roles.id
-        WHERE schedule.manager_id = %s;
+        WHERE schedule.manager_id = %s
+        ORDER BY shifts.day, shifts.start_time, employees.name;
     """, (manager_id,))
     rows = cursor.fetchall()
     cursor.close()
