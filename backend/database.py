@@ -514,12 +514,19 @@ def get_role_usage(role_id: int):
 def delete_role(role_id: int, manager_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM employee_roles WHERE role_id = %s;", (role_id,))
-    cursor.execute("UPDATE shifts SET role_id = NULL WHERE role_id = %s;", (role_id,))
-    cursor.execute("DELETE FROM roles WHERE id = %s AND manager_id = %s;", (role_id, manager_id))
-    conn.commit()
-    cursor.close()
-    release_connection(conn)
+    try:
+        cursor.execute("DELETE FROM employee_roles WHERE role_id = %s;", (role_id,))
+        cursor.execute("UPDATE shifts SET role_id = NULL WHERE role_id = %s;", (role_id,))
+        cursor.execute("UPDATE shift_templates SET role_id = NULL WHERE role_id = %s;", (role_id,))
+        cursor.execute("DELETE FROM roles WHERE id = %s AND manager_id = %s;", (role_id, manager_id))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Delete role failed: {e}")
+        raise
+    finally:
+        cursor.close()
+        release_connection(conn)
 
 # === EMPLOYEE ROLES — dependent, scoped via employee_id, unchanged ===
 

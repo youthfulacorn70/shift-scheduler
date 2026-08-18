@@ -20,6 +20,11 @@ class LoginRequest(BaseModel):
     username: str = Field(..., max_length=20)
     password: str = Field(..., max_length=50)
 
+    @field_validator('username')
+    @classmethod
+    def strip_username(cls, v):
+        return v.strip()
+
 load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -511,8 +516,12 @@ async def role_usage(role_id: int):
 @app.delete("/roles/{role_id}")
 async def remove_role(role_id: int, request: Request):
     manager_id = get_manager_id_from_request(request)
-    delete_role(role_id, manager_id)
-    return {"message": "Role deleted"}
+    try:
+        delete_role(role_id, manager_id)
+        return {"message": "Role deleted"}
+    except Exception as e:
+        print(f"Delete role failed: {e}")
+        return {"error": "Could not delete role. It may still be in use."}
 
 @app.get("/shifts/{shift_id}/assignment")
 async def get_assignment(shift_id: int):
@@ -617,15 +626,14 @@ class SignupRequest(BaseModel):
     username: str = Field(..., max_length=20)
     password: str = Field(..., max_length=50)
 
+    @field_validator('username')
+    @classmethod
+    def strip_username(cls, v):
+        return v.strip()
+
     @field_validator('password')
     @classmethod
     def password_strength(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters.')
-        if not any(c.isdigit() for c in v):
-            raise ValueError('Password must contain at least one number.')
-        if not any(c.isalpha() for c in v):
-            raise ValueError('Password must contain at least one letter.')
         return v
     
 @app.post("/auth/signup")
