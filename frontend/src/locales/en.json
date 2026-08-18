@@ -38,6 +38,7 @@
   "schedule.title": "Schedule",
   "schedule.today": "Today",
   "schedule.generate": "Generate Schedule",
+  "schedule.noShiftsThisWeek": "No shifts generated for this week yet — click \"Generate Schedule\" to create them.",
   "schedule.alreadyHasSchedule": "This week already has a schedule.",
   "schedule.regenerateConfirm": "Regenerate it with the current employee ratings?",
   "schedule.yesRegenerate": "Yes, regenerate",

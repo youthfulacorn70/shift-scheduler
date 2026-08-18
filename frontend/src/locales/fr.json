@@ -38,6 +38,7 @@
   "schedule.title": "Horaire",
   "schedule.today": "Aujourd'hui",
   "schedule.generate": "Générer l'horaire",
+  "schedule.noShiftsThisWeek": "Aucun quart généré pour cette semaine — cliquez sur « Générer l'horaire » pour les créer.",
   "schedule.alreadyHasSchedule": "Cette semaine a déjà un horaire.",
   "schedule.regenerateConfirm": "Le régénérer avec les évaluations actuelles des employés?",
   "schedule.yesRegenerate": "Oui, régénérer",

@@ -266,6 +266,9 @@ useEffect(() => {
     return unassignedShifts.filter(s => s.day === dateStr)
   }
 
+  const hasShiftsInRange = Array.from({ length: 14 }, (_, i) => addDays(selectedWeekStart, i))
+    .some(day => getEntriesForDay(day).length > 0 || getUnassignedForDay(day).length > 0)
+
   const filteredStaff = dayOverview?.available_employees.filter(e =>
     e.name.toLowerCase().includes(staffSearch.toLowerCase())
   ) ?? []
@@ -295,6 +298,12 @@ useEffect(() => {
           {t('schedule.generate')}
         </button>
       </div>
+
+      {!hasShiftsInRange && (
+        <div className={`${card} p-3 rounded-lg mb-6 text-sm ${subtext}`}>
+          {t('schedule.noShiftsThisWeek')}
+        </div>
+      )}
 
       {confirmOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">

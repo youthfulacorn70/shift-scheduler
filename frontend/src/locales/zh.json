@@ -38,6 +38,7 @@
   "schedule.title": "排班表",
   "schedule.today": "今天",
   "schedule.generate": "生成排班",
+  "schedule.noShiftsThisWeek": "本周尚未生成排班 — 点击「生成排班」以创建。",
   "schedule.alreadyHasSchedule": "本周已有排班。",
   "schedule.regenerateConfirm": "是否根据当前员工评分重新生成？",
   "schedule.yesRegenerate": "是，重新生成",
