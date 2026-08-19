@@ -19,7 +19,7 @@ interface UnassignedShift {
   start_time: string
   end_time: string
   required_role: string | null
-  potential_substitutes: { id: number, name: string }[]
+  potential_substitutes: { id: number, name: string, role_match: boolean }[]
 }
 
 interface AssignedEntry {
@@ -69,6 +69,7 @@ function SchedulePage({ theme = 'light', active = true }: { theme?: string, acti
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [selectedWeekStart, setSelectedWeekStart] = useState(() => getMonday(new Date()))
   const [assigningShift, setAssigningShift] = useState<UnassignedShift | null>(null)
+  const [confirmMismatch, setConfirmMismatch] = useState<{ shiftId: number, employeeId: number, employeeName: string } | null>(null)
   const [unassigningEntry, setUnassigningEntry] = useState<AssignedEntry | null>(null)
   const [conflictIds, setConflictIds] = useState<number[]>([])
 
@@ -333,7 +334,7 @@ useEffect(() => {
               <p className={`text-sm mb-4 ${subtext}`}>{t('schedule.noEligible')}</p>
             ) : (
               <div className="mb-4 flex flex-col gap-2">
-                {assigningShift.potential_substitutes.map(emp => (
+                {assigningShift.potential_substitutes.filter(e => e.role_match).map(emp => (
                   <button
                     key={emp.id}
                     onClick={() => assignShift(assigningShift.shift_id, emp.id)}
@@ -342,9 +343,51 @@ useEffect(() => {
                     {emp.name}
                   </button>
                 ))}
+                {assigningShift.potential_substitutes.some(e => !e.role_match) && (
+                  <div className="mt-2">
+                    <p className={`text-xs mb-2 ${subtext}`}>{t('schedule.noRoleMatchHeader')}</p>
+                    {assigningShift.potential_substitutes.filter(e => !e.role_match).map(emp => (
+                      <button
+                        key={emp.id}
+                        onClick={() => setConfirmMismatch({ shiftId: assigningShift.shift_id, employeeId: emp.id, employeeName: emp.name })}
+                        className={`w-full text-left px-4 py-2 rounded-lg border border-dashed text-sm transition-colors mb-2 ${theme === 'dark' ? 'border-gray-600 text-gray-400 hover:bg-gray-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+                      >
+                        {emp.name} <span className="text-xs">({t('schedule.noRoleTag')})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <button onClick={() => setAssigningShift(null)} className={`px-4 py-2 rounded-lg w-full text-sm ${theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}>{t('schedule.cancel')}</button>
+          </div>
+        </div>
+      )}
+
+      {confirmMismatch && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className={`${popupCard} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
+            <p className={`font-semibold mb-2 ${text}`}>{t('schedule.roleMismatchTitle')}</p>
+            <p className={`text-sm mb-4 ${subtext}`}>
+              {confirmMismatch.employeeName} {t('schedule.roleMismatchBody')}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  assignShift(confirmMismatch.shiftId, confirmMismatch.employeeId)
+                  setConfirmMismatch(null)
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+              >
+                {t('schedule.assignAnyway')}
+              </button>
+              <button
+                onClick={() => setConfirmMismatch(null)}
+                className={`px-4 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}
+              >
+                {t('schedule.cancel')}
+              </button>
+            </div>
           </div>
         </div>
       )}
