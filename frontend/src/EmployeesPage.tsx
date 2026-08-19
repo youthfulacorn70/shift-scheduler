@@ -71,6 +71,7 @@ function EmployeesPage({ theme = 'light', active = true }: { theme?: string, act
   const [ratings, setRatings] = useState<Rating[]>([])
   const [category, setCategory] = useState(PRESET_CATEGORIES[0])
   const [customCategory, setCustomCategory] = useState('')
+  const [scoreError, setScoreError] = useState('')
   const [score, setScore] = useState('')
   const [hasLogin, setHasLogin] = useState<boolean | null>(null)
   const [newUsername, setNewUsername] = useState('')
@@ -204,14 +205,19 @@ function EmployeesPage({ theme = 'light', active = true }: { theme?: string, act
 
   const addRating = () => {
     const finalCategory = category === 'CUSTOM' ? customCategory : category
-    const clampedScore = Math.min(5, Math.max(0, parseFloat(score) || 0))
+    const numericScore = parseFloat(score)
+    if (isNaN(numericScore) || numericScore < 0 || numericScore > 5) {
+      setScoreError(t('employees.scoreOutOfRange'))
+      return
+    }
+    setScoreError('')
     apiFetch(`/ratings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         employee_id: selectedEmp?.id,
         category: finalCategory,
-        score: clampedScore
+        score: numericScore
       })
     })
       .then(res => res.json())
@@ -396,18 +402,21 @@ const triggerPasswordReset = () => {
                 onChange={e => setCustomCategory(e.target.value)}
               />
             )}
-            <div className="flex items-center gap-1">
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.5"
-                className={`border rounded-lg px-3 py-2 text-sm outline-none w-16 ${input}`}
-                placeholder={t('employees.scorePlaceholder')}
-                value={score}
-                onChange={e => setScore(e.target.value)}
-              />
-              <span className={`text-sm ${subtext}`}>/5</span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.5"
+                  className={`border rounded-lg px-3 py-2 text-sm outline-none w-16 ${input} ${scoreError ? 'border-red-500' : ''}`}
+                  placeholder={t('employees.scorePlaceholder')}
+                  value={score}
+                  onChange={e => { setScore(e.target.value); setScoreError('') }}
+                />
+                <span className={`text-sm ${subtext}`}>/5</span>
+              </div>
+              {scoreError && <p className="text-red-500 text-xs mt-1">{scoreError}</p>}
             </div>
             <button onClick={addRating} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
               {t('employees.addRating')}

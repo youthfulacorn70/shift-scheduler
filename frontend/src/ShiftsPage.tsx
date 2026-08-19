@@ -246,12 +246,14 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
           />
           <input
             type="time"
+            lang="en-GB"
             className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
             value={startTime}
             onChange={e => setStartTime(e.target.value + ':00')}
           />
           <input
             type="time"
+            lang="en-GB"
             className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
             value={endTime}
             onChange={e => setEndTime(e.target.value + ':00')}
@@ -302,6 +304,7 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
           <label className={`text-xs mb-1 block ${subtext}`}>{t('shifts.startTime')}</label>
           <input
             type="time"
+            lang="en-GB"
             className={`border rounded-lg px-3 py-2 text-sm outline-none w-full ${input}`}
             value={recurringStart.slice(0, 5)}
             onChange={e => setRecurringStart(e.target.value + ':00')}
@@ -311,6 +314,7 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
           <label className={`text-xs mb-1 block ${subtext}`}>{t('shifts.endTime')}</label>
           <input
             type="time"
+            lang="en-GB"
             className={`border rounded-lg px-3 py-2 text-sm outline-none w-full ${input}`}
             value={recurringEnd.slice(0, 5)}
             onChange={e => setRecurringEnd(e.target.value + ':00')}
@@ -377,12 +381,14 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                       />
                       <input
                         type="time"
+                        lang="en-GB"
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
                         value={editingShift.start_time.slice(0, 5)}
                         onChange={e => setEditingShift({...editingShift, start_time: e.target.value + ':00'})}
                       />
                       <input
                         type="time"
+                        lang="en-GB"
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
                         value={editingShift.end_time.slice(0, 5)}
                         onChange={e => setEditingShift({...editingShift, end_time: e.target.value + ':00'})}
@@ -437,12 +443,14 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                       />
                       <input
                         type="time"
+                        lang="en-GB"
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
                         value={editingShift.start_time.slice(0, 5)}
                         onChange={e => setEditingShift({...editingShift, start_time: e.target.value + ':00'})}
                       />
                       <input
                         type="time"
+                        lang="en-GB"
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
                         value={editingShift.end_time.slice(0, 5)}
                         onChange={e => setEditingShift({...editingShift, end_time: e.target.value + ':00'})}

@@ -56,6 +56,7 @@
   "schedule.shifts": "个班次",
   "schedule.selected": "已选择",
   "schedule.change": "更换",
+  "employees.scoreOutOfRange": "评分必须在0到5之间。",
   "schedule.assign": "分配",
   "schedule.availableStaff": "可用员工",
   "schedule.selectShiftPrompt": "选择上方班次以分配员工",

@@ -229,5 +229,6 @@
   "role.cook": "Cook",
   "role.cashier": "Cashier",
   "role.shelfRestocker": "Shelf Restocker",
-  "role.cleaner": "Cleaner"
+  "role.cleaner": "Cleaner",
+  "employees.scoreOutOfRange": "Score must be between 0 and 5."
 }
