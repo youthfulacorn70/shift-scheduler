@@ -629,29 +629,41 @@ def get_employee_weekly_hours(employee_id: int, start_date: str, end_date: str) 
 def get_potential_substitutes(shift_id: int):
     with get_db_cursor() as (conn, cursor):
         cursor.execute("""
-            SELECT DISTINCT employees.id, employees.name, shifts.day
+            SELECT shifts.day, shifts.role_id, shifts.manager_id
+            FROM shifts WHERE shifts.id = %s;
+        """, (shift_id,))
+        shift_row = cursor.fetchone()
+        if not shift_row:
+            return []
+        shift_day, required_role_id, manager_id = shift_row
+
+        cursor.execute("""
+            SELECT DISTINCT employees.id, employees.name
             FROM employees
-            JOIN shifts ON shifts.id = %s
-            LEFT JOIN employee_roles ON employee_roles.employee_id = employees.id
-            LEFT JOIN roles ON employee_roles.role_id = roles.id
-            WHERE (shifts.role_id IS NULL OR roles.id = shifts.role_id)
-            AND employees.manager_id = shifts.manager_id
+            WHERE employees.manager_id = %s
             AND employees.id NOT IN (
                 SELECT schedule.employee_id
                 FROM schedule
                 JOIN shifts AS s2 ON schedule.shift_id = s2.id
-                WHERE s2.day = shifts.day
+                WHERE s2.day = %s
             );
-        """, (shift_id,))
+        """, (manager_id, shift_day))
         candidates = cursor.fetchall()
 
-        day_name = None
+        day_name = shift_day.strftime('%A')
         result = []
-        for emp_id, emp_name, shift_day in candidates:
-            if day_name is None:
-                day_name = shift_day.strftime('%A')
-            if get_availability_for_date(emp_id, str(shift_day), day_name):
-                result.append((emp_id, emp_name))
+        for emp_id, emp_name in candidates:
+            if not get_availability_for_date(emp_id, str(shift_day), day_name):
+                continue
+            if required_role_id is None:
+                role_match = True
+            else:
+                cursor.execute(
+                    "SELECT 1 FROM employee_roles WHERE employee_id = %s AND role_id = %s;",
+                    (emp_id, required_role_id)
+                )
+                role_match = cursor.fetchone() is not None
+            result.append((emp_id, emp_name, role_match))
 
         return result
 
