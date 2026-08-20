@@ -1,6 +1,6 @@
 // ShiftsPage.tsx
 import { apiFetch } from './api'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Repeat } from 'lucide-react'
 import { useTranslation } from './i18n'
 
@@ -38,29 +38,64 @@ const ROLE_KEYS: Record<string, string> = {
   'Cleaner': 'role.cleaner',
 }
 
-function TimeSelect({ value, onChange, input }: { value: string, onChange: (v: string) => void, input: string }) {
+function TimeSelect({ value, onChange, input, card, theme }: { value: string, onChange: (v: string) => void, input: string, card: string, theme: string }) {
   const parts = value ? value.split(':') : []
   const h = parts[0] || '09'
   const m = parts[1] || '00'
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
   const minutes = ['00', '15', '30', '45']
+  const [openField, setOpenField] = useState<'h' | 'm' | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpenField(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const optionHover = theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-indigo-50'
+
   return (
-    <div className="flex gap-1 items-center">
-      <select
-        className={`border rounded-lg px-2 py-2 text-sm outline-none ${input}`}
-        value={h}
-        onChange={e => onChange(`${e.target.value}:${m}`)}
-      >
-        {hours.map(hh => <option key={hh} value={hh}>{hh}</option>)}
-      </select>
-      <span className="text-sm">:</span>
-      <select
-        className={`border rounded-lg px-2 py-2 text-sm outline-none ${input}`}
-        value={m}
-        onChange={e => onChange(`${h}:${e.target.value}`)}
-      >
-        {minutes.map(mm => <option key={mm} value={mm}>{mm}</option>)}
-      </select>
+    <div ref={ref} className={`relative flex items-center gap-1 border rounded-lg px-2 h-9 ${input}`}>
+      <button type="button" onClick={() => setOpenField(openField === 'h' ? null : 'h')} className="text-sm font-medium px-1 py-1">
+        {h}
+      </button>
+      <span className="text-sm font-medium">:</span>
+      <button type="button" onClick={() => setOpenField(openField === 'm' ? null : 'm')} className="text-sm font-medium px-1 py-1">
+        {m}
+      </button>
+
+      {openField === 'h' && (
+        <div className={`absolute top-full left-0 mt-1 z-50 ${card} rounded-lg shadow-lg max-h-48 overflow-y-auto w-16`}>
+          {hours.map(hh => (
+            <div
+              key={hh}
+              onClick={() => { onChange(`${hh}:${m}`); setOpenField(null) }}
+              className={`px-3 py-1.5 text-sm cursor-pointer text-center ${hh === h ? 'bg-indigo-600 text-white' : optionHover}`}
+            >
+              {hh}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {openField === 'm' && (
+        <div className={`absolute top-full left-8 mt-1 z-50 ${card} rounded-lg shadow-lg w-16`}>
+          {minutes.map(mm => (
+            <div
+              key={mm}
+              onClick={() => { onChange(`${h}:${mm}`); setOpenField(null) }}
+              className={`px-3 py-1.5 text-sm cursor-pointer text-center ${mm === m ? 'bg-indigo-600 text-white' : optionHover}`}
+            >
+              {mm}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -275,11 +310,15 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
             value={startTime}
             onChange={v => setStartTime(v + ':00')}
             input={input}
+            card={card}
+            theme={theme}
           />
           <TimeSelect
             value={endTime}
             onChange={v => setEndTime(v + ':00')}
             input={input}
+            card={card}
+            theme={theme}
           />
           <select
             className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
@@ -329,6 +368,8 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
             value={recurringStart.slice(0, 5)}
             onChange={v => setRecurringStart(v + ':00')}
             input={input}
+            card={card}
+            theme={theme}
           />
         </div>
         <div className="flex-1">
@@ -337,6 +378,8 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
             value={recurringEnd.slice(0, 5)}
             onChange={v => setRecurringEnd(v + ':00')}
             input={input}
+            card={card}
+            theme={theme}
           />
         </div>
       </div>
@@ -402,11 +445,15 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                         value={editingShift.start_time.slice(0, 5)}
                         onChange={v => setEditingShift({...editingShift, start_time: v + ':00'})}
                         input={input}
+                        card={card}
+                        theme={theme}
                       />
                       <TimeSelect
                         value={editingShift.end_time.slice(0, 5)}
                         onChange={v => setEditingShift({...editingShift, end_time: v + ':00'})}
                         input={input}
+                        card={card}
+                        theme={theme}
                       />
                       <select
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
@@ -460,11 +507,15 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                         value={editingShift.start_time.slice(0, 5)}
                         onChange={v => setEditingShift({...editingShift, start_time: v + ':00'})}
                         input={input}
+                        card={card}
+                        theme={theme}
                       />
                       <TimeSelect
                         value={editingShift.end_time.slice(0, 5)}
                         onChange={v => setEditingShift({...editingShift, end_time: v + ':00'})}
                         input={input}
+                        card={card}
+                        theme={theme}
                       />
                       <select
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
