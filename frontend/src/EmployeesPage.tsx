@@ -81,6 +81,13 @@ function EmployeesPage({ theme = 'light', active = true }: { theme?: string, act
   const [editingAvailability, setEditingAvailability] = useState(false)
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null)
   const [deleteEmployeeInfo, setDeleteEmployeeInfo] = useState<{shift_count: number, has_login: boolean} | null>(null)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [editingRatingId, setEditingRatingId] = useState<number | null>(null)
+  const [editingRatingScore, setEditingRatingScore] = useState('')
+  const [editingRatingError, setEditingRatingError] = useState('')
   const [resettingPassword, setResettingPassword] = useState(false)
   const [resetPassword, setResetPassword] = useState('')
   const [resetSuccess, setResetSuccess] = useState(false)
@@ -152,6 +159,72 @@ function EmployeesPage({ theme = 'light', active = true }: { theme?: string, act
       .then(data => {
         setDeleteEmployeeInfo(data)
         setDeletingEmployee(emp)
+      })
+  }
+
+  const toggleSelectMode = () => {
+    setSelectMode(!selectMode)
+    setSelectedIds(new Set())
+  }
+
+  const toggleSelected = (empId: number) => {
+    const updated = new Set(selectedIds)
+    if (updated.has(empId)) {
+      updated.delete(empId)
+    } else {
+      updated.add(empId)
+    }
+    setSelectedIds(updated)
+  }
+
+  const confirmBulkDelete = () => {
+    setBulkDeleting(true)
+    const idsToDelete = Array.from(selectedIds)
+    Promise.all(
+      idsToDelete.map(id =>
+        apiFetch(`/employees/${id}`, { method: 'DELETE' }).then(res => res.json()).then(data => ({ id, data }))
+      )
+    ).then(results => {
+      const failed = results.filter(r => r.data.error)
+      const succeededIds = results.filter(r => !r.data.error).map(r => r.id)
+      setEmployees(employees.filter(e => !succeededIds.includes(e.id)))
+      if (selectedEmp && succeededIds.includes(selectedEmp.id)) setSelectedEmp(null)
+      setBulkDeleting(false)
+      setConfirmingBulkDelete(false)
+      setSelectMode(false)
+      setSelectedIds(new Set())
+      if (failed.length > 0) {
+        alert(`${failed.length} employee(s) could not be deleted. They may be linked to other records.`)
+      }
+    })
+  }
+
+  const startEditRating = (rating: Rating) => {
+    setEditingRatingId(rating.id)
+    setEditingRatingScore(String(rating.score))
+    setEditingRatingError('')
+  }
+
+  const saveEditRating = (ratingId: number) => {
+    const numericScore = parseFloat(editingRatingScore)
+    if (isNaN(numericScore) || numericScore < 0 || numericScore > 5) {
+      setEditingRatingError(t('employees.scoreOutOfRange'))
+      return
+    }
+    apiFetch(`/ratings/${ratingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score: numericScore })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          setEditingRatingError(data.error)
+          return
+        }
+        setRatings(ratings.map(r => r.id === ratingId ? { ...r, score: numericScore } : r))
+        setEditingRatingId(null)
+        setEditingRatingError('')
       })
   }
 
@@ -343,28 +416,59 @@ const triggerPasswordReset = () => {
         </div>
       </div>
 
-      <div className={`${card} rounded-lg shadow mb-6`}>
-        {employees.map(emp => (
-          <div
-            key={emp.id}
-            className={`p-4 border-b flex items-center justify-between ${divider} ${hover} ${selectedEmp?.id === emp.id ? theme === 'dark' ? 'bg-gray-700' : 'bg-indigo-50' : ''}`}
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={toggleSelectMode}
+          className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+            selectMode
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : theme === 'dark' ? 'bg-transparent text-gray-300 border-gray-600' : 'bg-white text-gray-700 border-gray-200'
+          }`}
+        >
+          {selectMode ? t('employees.cancelSelect') : t('employees.selectMultiple')}
+        </button>
+        {selectMode && selectedIds.size > 0 && (
+          <button
+            onClick={() => setConfirmingBulkDelete(true)}
+            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
           >
-            <div className="cursor-pointer flex-1" onClick={() => selectEmployee(emp)}>
-              <span className={`font-medium ${text}`}>{emp.name}</span>
-              <span className={`ml-2 text-sm ${subtext}`}>{emp.desired_hours} {t('employees.hrsPerWeek')}</span>
-            </div>
-            <button
-              onClick={() => handleDeleteClick(emp)}
-              className="text-red-400 hover:text-red-500 text-sm transition-colors"
-            >
-              {t('employees.delete')}
-            </button>
-          </div>
-        ))}
+            {t('employees.deleteSelected')} ({selectedIds.size})
+          </button>
+        )}
       </div>
 
-      {selectedEmp && (
-        <div className={`${card} p-6 rounded-lg shadow`}>
+      <div className={`${card} rounded-lg shadow mb-6`}>
+        {employees.map(emp => (
+          <div key={emp.id}>
+            <div
+              className={`p-4 border-b flex items-center justify-between ${divider} ${hover} ${selectedEmp?.id === emp.id ? theme === 'dark' ? 'bg-gray-700' : 'bg-indigo-50' : ''}`}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                {selectMode && (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(emp.id)}
+                    onChange={() => toggleSelected(emp.id)}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                )}
+                <div className="cursor-pointer flex-1" onClick={() => selectMode ? toggleSelected(emp.id) : selectEmployee(emp)}>
+                  <span className={`font-medium ${text}`}>{emp.name}</span>
+                  <span className={`ml-2 text-sm ${subtext}`}>{emp.desired_hours} {t('employees.hrsPerWeek')}</span>
+                </div>
+              </div>
+              {!selectMode && (
+                <button
+                  onClick={() => handleDeleteClick(emp)}
+                  className="text-red-400 hover:text-red-500 text-sm transition-colors"
+                >
+                  {t('employees.delete')}
+                </button>
+              )}
+            </div>
+
+            {selectedEmp?.id === emp.id && (
+        <div className={`${card} p-6 border-b-4 ${divider}`}>
 
           <div className="flex items-center justify-between mb-3">
             <h2 className={`text-lg font-semibold ${text}`}>{t('employees.ratingsFor')} {selectedEmp.name}</h2>
@@ -430,9 +534,38 @@ const triggerPasswordReset = () => {
             {(showAllRatings ? sortedRatings : sortedRatings.slice(0, 3)).map(r => (
               <div key={r.id} className={`flex justify-between items-center p-2 border-b ${divider}`}>
                 <span className={`${scoreColor(r.score)}`}>{categoryLabel(r.category)}</span>
-                <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${scoreBg(r.score)}`}>
-                  {r.score}/5
-                </span>
+                {editingRatingId === r.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="5"
+                      step="0.5"
+                      autoFocus
+                      className={`border rounded-lg px-2 py-1 text-sm outline-none w-16 ${input} ${editingRatingError ? 'border-red-500' : ''}`}
+                      value={editingRatingScore}
+                      onChange={e => { setEditingRatingScore(e.target.value); setEditingRatingError('') }}
+                      onKeyDown={e => e.key === 'Enter' && saveEditRating(r.id)}
+                    />
+                    <button onClick={() => saveEditRating(r.id)} className="bg-indigo-600 text-white px-2 py-1 rounded text-xs">
+                      {t('employees.save')}
+                    </button>
+                    <button
+                      onClick={() => { setEditingRatingId(null); setEditingRatingError('') }}
+                      className={`px-2 py-1 rounded text-xs ${theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      {t('employees.cancel')}
+                    </button>
+                    {editingRatingError && <p className="text-red-500 text-xs">{editingRatingError}</p>}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => startEditRating(r)}
+                    className={`text-sm font-semibold px-2 py-0.5 rounded-full ${scoreBg(r.score)} hover:opacity-75 transition-opacity`}
+                  >
+                    {r.score}/5
+                  </button>
+                )}
               </div>
             ))}
             {sortedRatings.length > 3 && (
@@ -697,6 +830,36 @@ const triggerPasswordReset = () => {
                 {createLoginError && <p className="text-red-500 text-sm w-full">{createLoginError}</p>}
               </div>
             )}
+          </div>
+        </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {confirmingBulkDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className={`${card} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
+            <p className={`font-semibold mb-2 ${text}`}>
+              {t('employees.bulkDeletePrefix')} {selectedIds.size} {selectedIds.size > 1 ? t('employees.employeesPlural') : t('employees.employeeSingular')}?
+            </p>
+            <p className={`text-sm mb-4 ${subtext}`}>{t('employees.bulkDeleteWarning')}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmBulkDelete}
+                disabled={bulkDeleting}
+                className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+              >
+                {bulkDeleting ? t('employees.deleting') : t('employees.delete')}
+              </button>
+              <button
+                onClick={() => setConfirmingBulkDelete(false)}
+                disabled={bulkDeleting}
+                className={`px-4 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}
+              >
+                {t('employees.cancel')}
+              </button>
+            </div>
           </div>
         </div>
       )}
