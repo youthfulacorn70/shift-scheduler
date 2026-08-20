@@ -38,6 +38,33 @@ const ROLE_KEYS: Record<string, string> = {
   'Cleaner': 'role.cleaner',
 }
 
+function TimeSelect({ value, onChange, input }: { value: string, onChange: (v: string) => void, input: string }) {
+  const parts = value ? value.split(':') : []
+  const h = parts[0] || '09'
+  const m = parts[1] || '00'
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+  const minutes = ['00', '15', '30', '45']
+  return (
+    <div className="flex gap-1 items-center">
+      <select
+        className={`border rounded-lg px-2 py-2 text-sm outline-none ${input}`}
+        value={h}
+        onChange={e => onChange(`${e.target.value}:${m}`)}
+      >
+        {hours.map(hh => <option key={hh} value={hh}>{hh}</option>)}
+      </select>
+      <span className="text-sm">:</span>
+      <select
+        className={`border rounded-lg px-2 py-2 text-sm outline-none ${input}`}
+        value={m}
+        onChange={e => onChange(`${h}:${e.target.value}`)}
+      >
+        {minutes.map(mm => <option key={mm} value={mm}>{mm}</option>)}
+      </select>
+    </div>
+  )
+}
+
 function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active?: boolean }) {
   const { t } = useTranslation()
   const roleLabel = (role: string) => t(ROLE_KEYS[role] || role)
@@ -244,19 +271,15 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
             value={day}
             onChange={e => setDay(e.target.value)}
           />
-          <input
-            type="time"
-            lang="en-GB"
-            className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
+          <TimeSelect
             value={startTime}
-            onChange={e => setStartTime(e.target.value + ':00')}
+            onChange={v => setStartTime(v + ':00')}
+            input={input}
           />
-          <input
-            type="time"
-            lang="en-GB"
-            className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
+          <TimeSelect
             value={endTime}
-            onChange={e => setEndTime(e.target.value + ':00')}
+            onChange={v => setEndTime(v + ':00')}
+            input={input}
           />
           <select
             className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
@@ -302,22 +325,18 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
       <div className="flex gap-2 mb-3">
         <div className="flex-1">
           <label className={`text-xs mb-1 block ${subtext}`}>{t('shifts.startTime')}</label>
-          <input
-            type="time"
-            lang="en-GB"
-            className={`border rounded-lg px-3 py-2 text-sm outline-none w-full ${input}`}
+          <TimeSelect
             value={recurringStart.slice(0, 5)}
-            onChange={e => setRecurringStart(e.target.value + ':00')}
+            onChange={v => setRecurringStart(v + ':00')}
+            input={input}
           />
         </div>
         <div className="flex-1">
           <label className={`text-xs mb-1 block ${subtext}`}>{t('shifts.endTime')}</label>
-          <input
-            type="time"
-            lang="en-GB"
-            className={`border rounded-lg px-3 py-2 text-sm outline-none w-full ${input}`}
+          <TimeSelect
             value={recurringEnd.slice(0, 5)}
-            onChange={e => setRecurringEnd(e.target.value + ':00')}
+            onChange={v => setRecurringEnd(v + ':00')}
+            input={input}
           />
         </div>
       </div>
@@ -379,19 +398,15 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                         value={editingShift.day}
                         onChange={e => setEditingShift({...editingShift, day: e.target.value})}
                       />
-                      <input
-                        type="time"
-                        lang="en-GB"
-                        className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
+                      <TimeSelect
                         value={editingShift.start_time.slice(0, 5)}
-                        onChange={e => setEditingShift({...editingShift, start_time: e.target.value + ':00'})}
+                        onChange={v => setEditingShift({...editingShift, start_time: v + ':00'})}
+                        input={input}
                       />
-                      <input
-                        type="time"
-                        lang="en-GB"
-                        className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
+                      <TimeSelect
                         value={editingShift.end_time.slice(0, 5)}
-                        onChange={e => setEditingShift({...editingShift, end_time: e.target.value + ':00'})}
+                        onChange={v => setEditingShift({...editingShift, end_time: v + ':00'})}
+                        input={input}
                       />
                       <select
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
@@ -441,19 +456,15 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                         value={editingShift.day}
                         onChange={e => setEditingShift({...editingShift, day: e.target.value})}
                       />
-                      <input
-                        type="time"
-                        lang="en-GB"
-                        className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
+                      <TimeSelect
                         value={editingShift.start_time.slice(0, 5)}
-                        onChange={e => setEditingShift({...editingShift, start_time: e.target.value + ':00'})}
+                        onChange={v => setEditingShift({...editingShift, start_time: v + ':00'})}
+                        input={input}
                       />
-                      <input
-                        type="time"
-                        lang="en-GB"
-                        className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
+                      <TimeSelect
                         value={editingShift.end_time.slice(0, 5)}
-                        onChange={e => setEditingShift({...editingShift, end_time: e.target.value + ':00'})}
+                        onChange={v => setEditingShift({...editingShift, end_time: v + ':00'})}
+                        input={input}
                       />
                       <select
                         className={`border rounded-lg px-3 py-2 text-sm outline-none ${input}`}
