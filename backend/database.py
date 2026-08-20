@@ -148,6 +148,13 @@ def add_rating(employee_id, category, score):
         rating_id = cursor.fetchone()[0]
         return rating_id
 
+def update_rating(rating_id, score):
+    with get_db_cursor() as (conn, cursor):
+        cursor.execute(
+            "UPDATE ratings SET score = %s WHERE id = %s;",
+            (score, rating_id)
+        )
+
 def get_ratings_by_employee(employee_id):
     with get_db_cursor() as (conn, cursor):
         cursor.execute(

@@ -3,7 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from models import Employee, Shift, calculate_overall_rating
 from algorithm import generate_schedule
-from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts, signup_new_manager, create_starter_shift_templates, get_ratings_for_employees, get_availability_for_employees, get_roles_for_employees, get_full_availability_for_employees
+from database import add_employee, get_all_employees, add_shift, get_all_shifts, add_rating, get_ratings_by_employee, save_schedule, get_schedule, clear_schedule, clear_schedule_for_week, week_has_schedule, add_recurring_availability, add_specific_availability, get_availability, delete_availability, delete_specific_availability, get_availability_for_date, add_role, get_all_roles, assign_role_to_employee, get_employee_roles, remove_employee_role, update_shift, delete_shift, create_user, get_user_by_username, get_user_by_employee_id, get_schedule_by_employee, create_shift_trade, get_pending_trades, update_trade_employee_status, update_trade_manager_status, get_trades_for_employee, get_employee_weekly_hours, get_unassigned_shifts, get_potential_substitutes, manually_assign_shift, remove_schedule_entry, get_role_usage, delete_role, get_shift_assignment, get_employee_usage, delete_employee, reset_user_password, get_day_overview, complete_password_reset, check_pending_reset, create_password_reset, create_shift_template, generate_shifts_from_template, get_all_shift_templates, get_schedule_conflicts, signup_new_manager, create_starter_shift_templates, get_ratings_for_employees, get_availability_for_employees, get_roles_for_employees, get_full_availability_for_employees, update_rating
 import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta
@@ -196,6 +196,14 @@ async def list_ratings(employee_id: int):
 async def create_rating(data: dict):
     rating_id = add_rating(data["employee_id"], data["category"], data["score"])
     return {"id": rating_id, "employee_id": data["employee_id"], "category": data["category"], "score": data["score"]}
+
+@app.put("/ratings/{rating_id}")
+async def edit_rating(rating_id: int, data: dict):
+    score = data.get("score")
+    if score is None or score < 0 or score > 5:
+        return {"error": "Score must be between 0 and 5."}
+    update_rating(rating_id, score)
+    return {"id": rating_id, "score": score}
 
 @app.post("/schedule")
 async def create_schedule(request: Request, data: dict):
