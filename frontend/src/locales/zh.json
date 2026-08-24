@@ -234,5 +234,6 @@
   "employees.deleteRatingConfirm": "删除此评分？",
   "employees.deleteRatingWarning": "这将从平均分中移除。此操作无法撤销。",
   "schedule.reasonUnavailable": "当天不可用",
+  "shifts.noTemplatesYet": "尚未创建任何周期性班次。",
   "schedule.reasonOverHours": "将超过每周工时"
 }

@@ -114,7 +114,7 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
   const [editingShift, setEditingShift] = useState<Shift | null>(null)
   const [deletingShift, setDeletingShift] = useState<Shift | null>(null)
   const [deleteAssignedTo, setDeleteAssignedTo] = useState<string | null>(null)
-  const [_templates, setTemplates] = useState<{id: number, day_name: string, start_time: string, end_time: string, role_id: number | null, role_name: string | null, active: boolean}[]>([])
+  const [templates, setTemplates] = useState<{id: number, day_name: string, start_time: string, end_time: string, role_id: number | null, role_name: string | null, active: boolean}[]>([])
   const [showRecurringModal, setShowRecurringModal] = useState(false)
   const [recurringDay, setRecurringDay] = useState('Monday')
   const [recurringStart, setRecurringStart] = useState('09:00:00')
@@ -220,6 +220,13 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
       .then(data => {
         setDeleteAssignedTo(data.employee)
         setDeletingShift(shift)
+      })
+  }
+
+  const deactivateTemplate = (templateId: number) => {
+    apiFetch(`/shift-templates/${templateId}`, { method: 'DELETE' })
+      .then(() => {
+        setTemplates(templates.map(tpl => tpl.id === templateId ? { ...tpl, active: false } : tpl))
       })
   }
 
@@ -549,8 +556,24 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
       )}
 
       {activeTab === 'templates' && (
-        <div className={`${card} rounded-lg shadow p-4`}>
-          <p className={subtext}>{t('shifts.templatesComingNext')}</p>
+        <div className={`${card} rounded-lg shadow`}>
+          {templates.filter(tpl => tpl.active).length === 0 && (
+            <p className={`p-4 text-sm ${subtext}`}>{t('shifts.noTemplatesYet')}</p>
+          )}
+          {templates.filter(tpl => tpl.active).map(tpl => (
+            <div key={tpl.id} className={`p-4 border-b flex justify-between items-center ${divider}`}>
+              <div>
+                <span className={`font-medium ${text}`}>{dayLabel(tpl.day_name)}</span>
+                <span className={`ml-2 text-sm ${subtext}`}>{formatTime(tpl.start_time)} - {formatTime(tpl.end_time)}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-indigo-500 text-sm font-medium">{tpl.role_name ? roleLabel(tpl.role_name) : t('shifts.anyRole')}</span>
+                <button onClick={() => deactivateTemplate(tpl.id)} className="text-red-400 hover:text-red-500 text-sm transition-colors">
+                  {t('shifts.delete')}
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

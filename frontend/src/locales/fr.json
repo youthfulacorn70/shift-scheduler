@@ -234,5 +234,6 @@
   "employees.deleteRatingConfirm": "Supprimer cette évaluation ?",
   "employees.deleteRatingWarning": "Elle sera retirée de la moyenne. Cette action est irréversible.",
   "schedule.reasonUnavailable": "indisponible ce jour-là",
+  "shifts.noTemplatesYet": "Aucun quart récurrent créé pour le moment.",
   "schedule.reasonOverHours": "dépasserait les heures hebdomadaires"
 }
