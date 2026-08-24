@@ -1,4 +1,5 @@
 import psycopg2
+from datetime import datetime, date, timedelta
 from psycopg2 import pool
 from psycopg2.extras import execute_values
 import os
@@ -651,16 +652,16 @@ def get_employee_weekly_hours(employee_id: int, start_date: str, end_date: str) 
 def get_potential_substitutes(shift_id: int):
     with get_db_cursor() as (conn, cursor):
         cursor.execute("""
-            SELECT shifts.day, shifts.role_id, shifts.manager_id
+            SELECT shifts.day, shifts.role_id, shifts.manager_id, shifts.start_time, shifts.end_time
             FROM shifts WHERE shifts.id = %s;
         """, (shift_id,))
         shift_row = cursor.fetchone()
         if not shift_row:
             return []
-        shift_day, required_role_id, manager_id = shift_row
+        shift_day, required_role_id, manager_id, shift_start, shift_end = shift_row
 
         cursor.execute("""
-            SELECT DISTINCT employees.id, employees.name
+            SELECT DISTINCT employees.id, employees.name, employees.desired_hours
             FROM employees
             WHERE employees.manager_id = %s
             AND employees.id NOT IN (
@@ -673,10 +674,20 @@ def get_potential_substitutes(shift_id: int):
         candidates = cursor.fetchall()
 
         day_name = shift_day.strftime('%A')
+        shift_hours = (
+            datetime.combine(date.min, shift_end) - datetime.combine(date.min, shift_start)
+        ).seconds / 3600
+
+        weekday = shift_day.weekday()
+        week_start = shift_day - timedelta(days=weekday)
+        week_end = week_start + timedelta(days=6)
+
         result = []
-        for emp_id, emp_name in candidates:
+        for emp_id, emp_name, desired_hours in candidates:
             if not get_availability_for_date(emp_id, str(shift_day), day_name):
+                result.append((emp_id, emp_name, False, 'unavailable'))
                 continue
+
             if required_role_id is None:
                 role_match = True
             else:
@@ -685,7 +696,20 @@ def get_potential_substitutes(shift_id: int):
                     (emp_id, required_role_id)
                 )
                 role_match = cursor.fetchone() is not None
-            result.append((emp_id, emp_name, role_match))
+
+            cursor.execute("""
+                SELECT SUM(EXTRACT(EPOCH FROM (shifts.end_time - shifts.start_time)) / 3600)
+                FROM schedule
+                JOIN shifts ON schedule.shift_id = shifts.id
+                WHERE schedule.employee_id = %s
+                AND shifts.day >= %s AND shifts.day <= %s;
+            """, (emp_id, week_start, week_end))
+            current_hours = cursor.fetchone()[0]
+            current_hours = float(current_hours) if current_hours else 0.0
+            would_exceed = (current_hours + shift_hours) > desired_hours
+
+            reason = 'over_hours' if would_exceed else None
+            result.append((emp_id, emp_name, role_match, reason))
 
         return result
 

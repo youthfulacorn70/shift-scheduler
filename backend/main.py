@@ -505,7 +505,7 @@ async def list_unassigned_shifts(request: Request, start_date: str, end_date: st
             "end_time": str(row[3]),
             "required_role": row[4],
             "potential_substitutes": [
-                {"id": s[0], "name": s[1], "role_match": s[2]} for s in substitutes
+                {"id": s[0], "name": s[1], "role_match": s[2], "reason": s[3]} for s in substitutes
             ]
         })
     return result
