@@ -26,21 +26,32 @@ def get_db_cursor():
     """
     Guarantees the connection is always returned to the pool, even if the
     function raises partway through. Auto-commits on success, rolls back
-    and re-raises on failure. Every database.py function should route
-    through this instead of manually calling get_connection()/release_connection().
+    and re-raises on failure. If the connection itself has gone dead
+    (e.g. Postgres restarted and closed it server-side while it sat idle
+    in the pool), it's discarded entirely instead of being recycled back
+    in — recycling a dead connection just makes every future request that
+    picks it up fail the same way.
+    Every database.py function should route through this instead of
+    manually calling get_connection()/release_connection().
     """
     conn = get_connection()
     cursor = conn.cursor()
+    should_discard = False
     try:
         yield conn, cursor
         conn.commit()
     except Exception:
-        conn.rollback()
+        try:
+            conn.rollback()
+        except Exception:
+            should_discard = True
         raise
     finally:
         cursor.close()
-        release_connection(conn)
-
+        if should_discard or conn.closed:
+            connection_pool.putconn(conn, close=True)
+        else:
+            release_connection(conn)
 # === EMPLOYEES ===
 
 def add_employee(name, desired_hours, manager_id):
