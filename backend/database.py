@@ -166,6 +166,10 @@ def update_rating(rating_id, score):
             (score, rating_id)
         )
 
+def delete_rating(rating_id):
+    with get_db_cursor() as (conn, cursor):
+        cursor.execute("DELETE FROM ratings WHERE id = %s;", (rating_id,))
+
 def get_ratings_by_employee(employee_id):
     with get_db_cursor() as (conn, cursor):
         cursor.execute(
