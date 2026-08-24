@@ -853,6 +853,13 @@ def generate_shifts_from_template(template_id, start_date, end_date):
 
         return created_ids
 
+def deactivate_shift_template(template_id, manager_id):
+    with get_db_cursor() as (conn, cursor):
+        cursor.execute(
+            "UPDATE shift_templates SET active = FALSE WHERE id = %s AND manager_id = %s;",
+            (template_id, manager_id)
+        )
+
 def get_all_shift_templates(manager_id):
     with get_db_cursor() as (conn, cursor):
         cursor.execute("""
