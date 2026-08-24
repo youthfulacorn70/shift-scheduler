@@ -230,5 +230,7 @@
   "role.cashier": "Cashier",
   "role.shelfRestocker": "Shelf Restocker",
   "role.cleaner": "Cleaner",
-  "employees.scoreOutOfRange": "Score must be between 0 and 5."
+  "employees.scoreOutOfRange": "Score must be between 0 and 5.",
+  "employees.deleteRatingConfirm": "Delete this rating?",
+  "employees.deleteRatingWarning": "This will remove it from the average. This can't be undone."
 }

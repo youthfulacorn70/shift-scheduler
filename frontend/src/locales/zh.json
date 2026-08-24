@@ -230,5 +230,7 @@
   "role.cook": "厨师",
   "role.cashier": "收银员",
   "role.shelfRestocker": "货架补货员",
-  "role.cleaner": "保洁员"
+  "role.cleaner": "保洁员",
+  "employees.deleteRatingConfirm": "删除此评分？",
+  "employees.deleteRatingWarning": "这将从平均分中移除。此操作无法撤销。"
 }

@@ -88,6 +88,7 @@ function EmployeesPage({ theme = 'light', active = true }: { theme?: string, act
   const [editingRatingId, setEditingRatingId] = useState<number | null>(null)
   const [editingRatingScore, setEditingRatingScore] = useState('')
   const [editingRatingError, setEditingRatingError] = useState('')
+  const [deletingRatingId, setDeletingRatingId] = useState<number | null>(null)
   const [resettingPassword, setResettingPassword] = useState(false)
   const [resetPassword, setResetPassword] = useState('')
   const [resetSuccess, setResetSuccess] = useState(false)
@@ -225,6 +226,16 @@ function EmployeesPage({ theme = 'light', active = true }: { theme?: string, act
         setRatings(ratings.map(r => r.id === ratingId ? { ...r, score: numericScore } : r))
         setEditingRatingId(null)
         setEditingRatingError('')
+      })
+  }
+
+  const confirmDeleteRating = () => {
+    if (deletingRatingId === null) return
+    apiFetch(`/ratings/${deletingRatingId}`, { method: 'DELETE' })
+      .then(() => {
+        setRatings(ratings.filter(r => r.id !== deletingRatingId))
+        setDeletingRatingId(null)
+        if (editingRatingId === deletingRatingId) setEditingRatingId(null)
       })
   }
 
@@ -556,6 +567,12 @@ const triggerPasswordReset = () => {
                     >
                       {t('employees.cancel')}
                     </button>
+                    <button
+                      onClick={() => setDeletingRatingId(r.id)}
+                      className="text-red-400 hover:text-red-500 text-xs"
+                    >
+                      {t('employees.delete')}
+                    </button>
                     {editingRatingError && <p className="text-red-500 text-xs">{editingRatingError}</p>}
                   </div>
                 ) : (
@@ -836,6 +853,26 @@ const triggerPasswordReset = () => {
           </div>
         ))}
       </div>
+
+      {deletingRatingId !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className={`${card} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
+            <p className={`font-semibold mb-2 ${text}`}>{t('employees.deleteRatingConfirm')}</p>
+            <p className={`text-sm mb-4 ${subtext}`}>{t('employees.deleteRatingWarning')}</p>
+            <div className="flex gap-3">
+              <button onClick={confirmDeleteRating} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                {t('employees.delete')}
+              </button>
+              <button
+                onClick={() => setDeletingRatingId(null)}
+                className={`px-4 py-2 rounded-lg text-sm ${theme === 'dark' ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}
+              >
+                {t('employees.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmingBulkDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">

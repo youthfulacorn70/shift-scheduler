@@ -230,5 +230,7 @@
   "role.cook": "Cuisinier",
   "role.cashier": "Caissier",
   "role.shelfRestocker": "Réapprovisionneur",
-  "role.cleaner": "Nettoyeur"
+  "role.cleaner": "Nettoyeur",
+  "employees.deleteRatingConfirm": "Supprimer cette évaluation ?",
+  "employees.deleteRatingWarning": "Elle sera retirée de la moyenne. Cette action est irréversible."
 }
