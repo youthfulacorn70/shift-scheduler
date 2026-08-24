@@ -232,5 +232,7 @@
   "role.cleaner": "Cleaner",
   "employees.scoreOutOfRange": "Score must be between 0 and 5.",
   "employees.deleteRatingConfirm": "Delete this rating?",
-  "employees.deleteRatingWarning": "This will remove it from the average. This can't be undone."
+  "employees.deleteRatingWarning": "This will remove it from the average. This can't be undone.",
+  "schedule.reasonUnavailable": "unavailable that day",
+  "schedule.reasonOverHours": "would exceed weekly hours"
 }

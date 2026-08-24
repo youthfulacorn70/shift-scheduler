@@ -19,7 +19,7 @@ interface UnassignedShift {
   start_time: string
   end_time: string
   required_role: string | null
-  potential_substitutes: { id: number, name: string, role_match: boolean }[]
+  potential_substitutes: { id: number, name: string, role_match: boolean, reason: string | null }[]
 }
 
 interface AssignedEntry {
@@ -334,7 +334,7 @@ useEffect(() => {
               <p className={`text-sm mb-4 ${subtext}`}>{t('schedule.noEligible')}</p>
             ) : (
               <div className="mb-4 flex flex-col gap-2">
-                {assigningShift.potential_substitutes.filter(e => e.role_match).map(emp => (
+                {assigningShift.potential_substitutes.filter(e => e.reason !== 'unavailable' && e.role_match).map(emp => (
                   <button
                     key={emp.id}
                     onClick={() => assignShift(assigningShift.shift_id, emp.id)}
@@ -343,10 +343,10 @@ useEffect(() => {
                     {emp.name}
                   </button>
                 ))}
-                {assigningShift.potential_substitutes.some(e => !e.role_match) && (
+                {assigningShift.potential_substitutes.some(e => e.reason !== 'unavailable' && !e.role_match) && (
                   <div className="mt-2">
                     <p className={`text-xs mb-2 ${subtext}`}>{t('schedule.noRoleMatchHeader')}</p>
-                    {assigningShift.potential_substitutes.filter(e => !e.role_match).map(emp => (
+                    {assigningShift.potential_substitutes.filter(e => e.reason !== 'unavailable' && !e.role_match).map(emp => (
                       <button
                         key={emp.id}
                         onClick={() => setConfirmMismatch({ shiftId: assigningShift.shift_id, employeeId: emp.id, employeeName: emp.name })}
@@ -573,11 +573,25 @@ useEffect(() => {
                 {shift.day} · {shift.start_time.slice(0,5)} – {shift.end_time.slice(0,5)}
                 {shift.required_role && <span className="ml-2 text-red-400">({shift.required_role})</span>}
               </p>
-              {shift.potential_substitutes.length > 0 ? (
-                <p className={`text-xs mt-1 ${subtext}`}>💡 {shift.potential_substitutes.map(s => s.name).join(', ')}</p>
-              ) : (
-                <p className={`text-xs mt-1 ${subtext}`}>{t('schedule.noEligible')}</p>
-              )}
+              {(() => {
+                const fullyEligible = shift.potential_substitutes.filter(s => s.reason === null)
+                const excluded = shift.potential_substitutes.filter(s => s.reason !== null)
+                if (fullyEligible.length > 0) {
+                  return <p className={`text-xs mt-1 ${subtext}`}>💡 {fullyEligible.map(s => s.name).join(', ')}</p>
+                }
+                if (excluded.length > 0) {
+                  return (
+                    <div className="mt-1">
+                      {excluded.map(s => (
+                        <p key={s.id} className={`text-xs ${subtext}`}>
+                          {s.name} — {s.reason === 'unavailable' ? t('schedule.reasonUnavailable') : t('schedule.reasonOverHours')}
+                        </p>
+                      ))}
+                    </div>
+                  )
+                }
+                return <p className={`text-xs mt-1 ${subtext}`}>{t('schedule.noEligible')}</p>
+              })()}
             </div>
           ))}
         </div>
