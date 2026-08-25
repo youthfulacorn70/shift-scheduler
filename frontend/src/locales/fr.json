@@ -235,5 +235,11 @@
   "employees.deleteRatingWarning": "Elle sera retirée de la moyenne. Cette action est irréversible.",
   "schedule.reasonUnavailable": "indisponible ce jour-là",
   "shifts.noTemplatesYet": "Aucun quart récurrent créé pour le moment.",
-  "schedule.reasonOverHours": "dépasserait les heures hebdomadaires"
+  "schedule.reasonOverHours": "dépasserait les heures hebdomadaires",
+  "schedule.showDetails": "Afficher les détails",
+  "schedule.hideDetails": "Masquer les détails",
+  "schedule.employeesUnavailable": "employés indisponibles ce jour-là",
+  "schedule.employeesOverHours": "employés dépasseraient les heures hebdomadaires",
+  "shifts.addRecurringShiftHint": "Ceci crée une règle répétitive pour les semaines à venir. Vous devrez toujours cliquer sur Générer l'horaire pour créer les quarts réels.",
+  "shifts.templatesTabHint": "Ce sont vos règles récurrentes, pas des quarts réels. Utilisez Générer l'horaire sur une semaine pour créer les quarts réels à partir d'une règle affichée ici."
 }

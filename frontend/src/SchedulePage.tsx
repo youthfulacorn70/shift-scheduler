@@ -69,6 +69,7 @@ function SchedulePage({ theme = 'light', active = true }: { theme?: string, acti
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [selectedWeekStart, setSelectedWeekStart] = useState(() => getMonday(new Date()))
   const [assigningShift, setAssigningShift] = useState<UnassignedShift | null>(null)
+  const [coveragePanelOpen, setCoveragePanelOpen] = useState(false)
   const [confirmMismatch, setConfirmMismatch] = useState<{ shiftId: number, employeeId: number, employeeName: string } | null>(null)
   const [unassigningEntry, setUnassigningEntry] = useState<AssignedEntry | null>(null)
   const [conflictIds, setConflictIds] = useState<number[]>([])
@@ -563,10 +564,18 @@ useEffect(() => {
       )}
 
       {unassignedShifts.length > 0 && (
-        <div className={`border rounded-lg p-4 mb-6 ${theme === 'dark' ? 'bg-red-950 border-red-800' : 'bg-red-50 border-red-200'}`}>
-          <h2 className="text-red-500 font-semibold mb-3 text-sm">
-            ⚠️ {unassignedShifts.length} {t('schedule.needsCoverage')}
-          </h2>
+        <div className={`border rounded-lg mb-6 ${theme === 'dark' ? 'bg-red-950 border-red-800' : 'bg-red-50 border-red-200'}`}>
+          <button
+            onClick={() => setCoveragePanelOpen(!coveragePanelOpen)}
+            className="w-full flex items-center justify-between p-4 text-left"
+          >
+            <h2 className="text-red-500 font-semibold text-sm">
+              ⚠️ {unassignedShifts.length} {t('schedule.needsCoverage')}
+            </h2>
+            <span className="text-red-500 text-xs">{coveragePanelOpen ? t('schedule.hideDetails') : t('schedule.showDetails')}</span>
+          </button>
+          {coveragePanelOpen && (
+          <div className="px-4 pb-4">
           {unassignedShifts.map((shift, i) => (
             <div key={i} className={`mb-3 pb-3 border-b last:border-0 ${theme === 'dark' ? 'border-red-800' : 'border-red-100'}`}>
               <p className="text-sm font-medium text-red-500">
@@ -575,25 +584,45 @@ useEffect(() => {
               </p>
               {(() => {
                 const fullyEligible = shift.potential_substitutes.filter(s => s.reason === null)
-                const excluded = shift.potential_substitutes.filter(s => s.reason !== null)
+                const unavailable = shift.potential_substitutes.filter(s => s.reason === 'unavailable')
+                const overHours = shift.potential_substitutes.filter(s => s.reason === 'over_hours')
+
                 if (fullyEligible.length > 0) {
                   return <p className={`text-xs mt-1 ${subtext}`}>💡 {fullyEligible.map(s => s.name).join(', ')}</p>
                 }
-                if (excluded.length > 0) {
-                  return (
-                    <div className="mt-1">
-                      {excluded.map(s => (
-                        <p key={s.id} className={`text-xs ${subtext}`}>
-                          {s.name} — {s.reason === 'unavailable' ? t('schedule.reasonUnavailable') : t('schedule.reasonOverHours')}
-                        </p>
-                      ))}
-                    </div>
+
+                const lines: string[] = []
+                if (unavailable.length > 0) {
+                  lines.push(
+                    unavailable.length <= 3
+                      ? `${unavailable.map(s => s.name).join(', ')} — ${t('schedule.reasonUnavailable')}`
+                      : `${unavailable.length} ${t('schedule.employeesUnavailable')}`
                   )
                 }
-                return <p className={`text-xs mt-1 ${subtext}`}>{t('schedule.noEligible')}</p>
+                if (overHours.length > 0) {
+                  lines.push(
+                    overHours.length <= 3
+                      ? `${overHours.map(s => s.name).join(', ')} — ${t('schedule.reasonOverHours')}`
+                      : `${overHours.length} ${t('schedule.employeesOverHours')}`
+                  )
+                }
+
+                if (lines.length === 0) {
+                  return <p className={`text-xs mt-1 ${subtext}`}>{t('schedule.noEligible')}</p>
+                }
+
+                return (
+                  <div className="mt-1">
+                    {lines.map((line, li) => (
+                      <p key={li} className={`text-xs ${subtext}`}>{line}</p>
+                    ))}
+                  </div>
+                )
               })()}
             </div>
           ))}
+          </div>
+          )}
         </div>
       )}
 

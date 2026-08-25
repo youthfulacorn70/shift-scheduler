@@ -235,5 +235,11 @@
   "employees.deleteRatingWarning": "This will remove it from the average. This can't be undone.",
   "schedule.reasonUnavailable": "unavailable that day",
   "shifts.noTemplatesYet": "No recurring shifts created yet.",
-  "schedule.reasonOverHours": "would exceed weekly hours"
+  "schedule.reasonOverHours": "would exceed weekly hours",
+  "schedule.showDetails": "Show details",
+  "schedule.hideDetails": "Hide details",
+  "schedule.employeesUnavailable": "employees unavailable that day",
+  "schedule.employeesOverHours": "employees would exceed weekly hours",
+  "shifts.addRecurringShiftHint": "This creates a repeating rule for future weeks. You'll still need to click Generate Schedule for a week to actually create shifts from it.",
+  "shifts.templatesTabHint": "These are your recurring rules, not actual shifts. Run Generate Schedule on a week to create real shifts from a rule shown here."
 }

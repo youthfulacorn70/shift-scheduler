@@ -368,7 +368,8 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
 {showRecurringModal && (
   <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
     <div className={`${card} rounded-lg shadow-lg p-6 max-w-sm w-full`}>
-      <p className={`font-semibold mb-3 ${text}`}>{t('shifts.addRecurringShiftTitle')}</p>
+      <p className={`font-semibold mb-1 ${text}`}>{t('shifts.addRecurringShiftTitle')}</p>
+      <p className={`text-xs mb-3 ${subtext}`}>{t('shifts.addRecurringShiftHint')}</p>
 
       <label className={`text-xs mb-1 block ${subtext}`}>{t('shifts.dayOfWeek')}</label>
       <select
@@ -569,7 +570,9 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
       )}
 
       {activeTab === 'templates' && (
-        <div className={`${card} rounded-lg shadow`}>
+        <div>
+          <p className={`text-xs mb-3 ${subtext}`}>{t('shifts.templatesTabHint')}</p>
+          <div className={`${card} rounded-lg shadow`}>
           {templates.filter(tpl => tpl.active).length === 0 && (
             <p className={`p-4 text-sm ${subtext}`}>{t('shifts.noTemplatesYet')}</p>
           )}
@@ -587,6 +590,7 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
     </div>

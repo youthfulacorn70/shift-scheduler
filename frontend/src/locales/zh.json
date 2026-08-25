@@ -235,5 +235,11 @@
   "employees.deleteRatingWarning": "这将从平均分中移除。此操作无法撤销。",
   "schedule.reasonUnavailable": "当天不可用",
   "shifts.noTemplatesYet": "尚未创建任何周期性班次。",
-  "schedule.reasonOverHours": "将超过每周工时"
+  "schedule.reasonOverHours": "将超过每周工时",
+  "schedule.showDetails": "显示详情",
+  "schedule.hideDetails": "隐藏详情",
+  "schedule.employeesUnavailable": "名员工当天不可用",
+  "schedule.employeesOverHours": "名员工将超过每周工时",
+  "shifts.addRecurringShiftHint": "这将创建一条适用于未来几周的重复规则。您仍需为某一周点击「生成排班」才能实际生成班次。",
+  "shifts.templatesTabHint": "这些是您的重复规则，并非实际班次。请对某一周使用「生成排班」，才能根据此处的规则生成实际班次。"
 }
