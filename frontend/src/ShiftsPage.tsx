@@ -47,6 +47,19 @@ function TimeSelect({ value, onChange, input, card, theme }: { value: string, on
   const [openField, setOpenField] = useState<'h' | 'm' | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
+  // Self-healing: if this component is ever handed an empty value — on
+  // mount, after a form reset, or from any future code path — it writes
+  // its own displayed fallback (09:00) back into real state immediately.
+  // This closes the gap between what's shown and what's actually stored,
+  // so an empty string can never silently reach a submit handler again,
+  // no matter what caused the value to go empty.
+  useEffect(() => {
+    if (!value) {
+      onChange(`${h}:${m}`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
