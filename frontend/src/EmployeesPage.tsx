@@ -2,6 +2,7 @@ import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { useTranslation } from './i18n'
 import { X } from 'lucide-react'
+import Skeleton from './Skeleton'
 
 interface Employee {
   id: number
@@ -94,11 +95,15 @@ function EmployeesPage({ theme = 'light', active = true }: { theme?: string, act
   const [resetSuccess, setResetSuccess] = useState(false)
   const [resetRequestSent, setResetRequestSent] = useState(false)
   const [resetTriggerError, setResetTriggerError] = useState('')
+  const [loadingEmployees, setLoadingEmployees] = useState(true)
 
   useEffect(() => {
     apiFetch(`/employees`)
       .then(res => res.json())
-      .then(data => setEmployees(data))
+      .then(data => {
+        setEmployees(data)
+        setLoadingEmployees(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -449,7 +454,17 @@ const triggerPasswordReset = () => {
       </div>
 
       <div className={`${card} rounded-lg shadow mb-6`}>
-        {employees.map(emp => (
+        {loadingEmployees && (
+          <div className="p-4 space-y-4">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex justify-between items-center">
+                <Skeleton theme={theme} className="h-4 w-32" />
+                <Skeleton theme={theme} className="h-3 w-16" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loadingEmployees && employees.map(emp => (
           <div key={emp.id}>
             <div
               className={`p-4 border-b flex items-center justify-between ${divider} ${hover} ${selectedEmp?.id === emp.id ? theme === 'dark' ? 'bg-gray-700' : 'bg-indigo-50' : ''}`}

@@ -3,6 +3,7 @@ import { apiFetch } from './api'
 import { useState, useEffect, useRef } from 'react'
 import { Repeat } from 'lucide-react'
 import { useTranslation } from './i18n'
+import Skeleton from './Skeleton'
 
 interface Shift {
   id: number
@@ -136,11 +137,15 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
   const [recurringError, setRecurringError] = useState('')
   const [activeTab, setActiveTab] = useState<'all' | 'templates'>('all')
   const [recurringQuantity, setRecurringQuantity] = useState(1)
+  const [loadingShifts, setLoadingShifts] = useState(true)
 
   useEffect(() => {
     apiFetch(`/shifts`)
       .then(res => res.json())
-      .then(data => setShifts(data))
+      .then(data => {
+        setShifts(data)
+        setLoadingShifts(false)
+      })
     apiFetch(`/shift-templates`)
       .then(res => res.json())
       .then(data => setTemplates(data))
@@ -452,7 +457,14 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
               {shifts.filter(s => s.template_id).length === 0 && (
                 <p className={`p-4 text-sm ${subtext}`}>{t('shifts.noRecurring')}</p>
               )}
-              {shifts.filter(s => s.template_id).map(shift => (
+              {loadingShifts && (
+                <div className="p-4 space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <Skeleton key={i} theme={theme} className="h-10 w-full" />
+                  ))}
+                </div>
+              )}
+              {!loadingShifts && shifts.filter(s => s.template_id).map(shift => (
                 <div key={shift.id} className={`p-4 border-b ${divider}`}>
                   {editingShift?.id === shift.id ? (
                     <div className="flex gap-2 items-center flex-wrap">
@@ -514,7 +526,14 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
               {shifts.filter(s => !s.template_id).length === 0 && (
                 <p className={`p-4 text-sm ${subtext}`}>{t('shifts.noOneTime')}</p>
               )}
-              {shifts.filter(s => !s.template_id).map(shift => (
+              {loadingShifts && (
+                <div className="p-4 space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <Skeleton key={i} theme={theme} className="h-10 w-full" />
+                  ))}
+                </div>
+              )}
+              {!loadingShifts && shifts.filter(s => !s.template_id).map(shift => (
                 <div key={shift.id} className={`p-4 border-b ${divider}`}>
                   {editingShift?.id === shift.id ? (
                     <div className="flex gap-2 items-center flex-wrap">

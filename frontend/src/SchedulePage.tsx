@@ -3,6 +3,7 @@ import { apiFetch } from './api'
 import { useState, useEffect } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
 import { useTranslation } from './i18n'
+import Skeleton from './Skeleton'
 
 interface ScheduleEntry {
   id: number
@@ -122,7 +123,10 @@ function SchedulePage({ theme = 'light', active = true }: { theme?: string, acti
   const fetchSchedule = () => {
     apiFetch(`/schedule`)
       .then(res => res.json())
-      .then(data => setSchedule(data))
+      .then(data => {
+        setSchedule(data)
+        setLoadingSchedule(false)
+      })
   }
 
   const fetchConflicts = () => {
@@ -132,9 +136,11 @@ function SchedulePage({ theme = 'light', active = true }: { theme?: string, acti
   }
 
   const weeksToShow = [selectedWeekStart, addDays(selectedWeekStart, 7)]
+  const [loadingSchedule, setLoadingSchedule] = useState(true)
 
 useEffect(() => {
   if (!active) return
+  setLoadingSchedule(true)
   const start = toDateString(selectedWeekStart)
   const end = toDateString(addDays(selectedWeekStart, 13))
   fetchSchedule()
@@ -626,7 +632,22 @@ useEffect(() => {
         </div>
       )}
 
-      {weeksToShow.map((weekMonday, weekIndex) => (
+      {loadingSchedule && (
+        <div className="mb-6">
+          <Skeleton theme={theme} className="h-3 w-32 mb-2" />
+          <div className="grid grid-cols-7 gap-2">
+            {Array.from({ length: 7 }, (_, i) => (
+              <div key={i} className={`rounded-lg p-2 min-h-24 ${card}`}>
+                <Skeleton theme={theme} className="h-3 w-10 mb-2" />
+                <Skeleton theme={theme} className="h-8 w-full mb-1.5" />
+                <Skeleton theme={theme} className="h-8 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loadingSchedule && weeksToShow.map((weekMonday, weekIndex) => (
         <div key={weekIndex} className="mb-6">
           <h2 className={`text-xs font-semibold mb-2 uppercase tracking-widest ${subtext}`}>
             {formatWeekLabel(weekMonday)}
