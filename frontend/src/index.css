@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+@theme {
+  /* Blue accent scale, replacing default Tailwind indigo app-wide */
+  --color-indigo-50: #eef4fc;
+  --color-indigo-100: #dbe9fa;
+  --color-indigo-200: #b9d3f5;
+  --color-indigo-300: #8EB2EB;
+  --color-indigo-400: #78A1E2;
+  --color-indigo-500: #6a95d9;
+  --color-indigo-600: #5C88D6;
+  --color-indigo-700: #4a72b8;
+  --color-indigo-800: #3a5a92;
+  --color-indigo-900: #2c4570;
+
+  /* Blue-tinted neutral scale, replacing default Tailwind gray app-wide */
+  --color-gray-50: #f7f9fc;
+  --color-gray-100: #eef2fa;
+  --color-gray-200: #dbe4f5;
+  --color-gray-300: #b7c4e0;
+  --color-gray-400: #8a94ad;
+  --color-gray-500: #6b7690;
+  --color-gray-600: #4d5670;
+  --color-gray-700: #2a3450;
+  --color-gray-800: #141a28;
+  --color-gray-900: #0b0f18;
+}
+
 body {
   font-family: 'DM Sans', sans-serif;
 }
