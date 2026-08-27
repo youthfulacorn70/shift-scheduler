@@ -222,6 +222,8 @@ useEffect(() => {
   }
 
   const generateSchedule = () => {
+    setConfirmOpen(false)
+    setLoadingSchedule(true)
     const start = toDateString(selectedWeekStart)
     const end = toDateString(addDays(selectedWeekStart, 13))
     apiFetch(`/schedule`, {
@@ -234,7 +236,7 @@ useEffect(() => {
       .then(res => res.json())
       .then(data => {
         setSchedule(data)
-        setConfirmOpen(false)
+        setLoadingSchedule(false)
         fetchUnassigned(start, end)
         fetchConflicts()
       })
