@@ -266,21 +266,23 @@ async def create_schedule(request: Request, data: dict):
 
     completed_schedule = generate_schedule(employees, shifts, full_availability_data)
 
-    result = []
-    for shift in completed_schedule:
-        result.append({
-            "day": shift.day,
-            "start_time": shift.start_time,
-            "end_time": shift.end_time,
-            "employee": shift.employee_name
-        })
-
     clear_schedule_for_week(start_date, end_date, manager_id)
+
+    result = []
     for shift in completed_schedule:
         if shift.employee_name:
             emp_id = next((row[0] for row in emp_rows if row[1] == shift.employee_name), None)
             if emp_id and shift.shift_id:
-                save_schedule(shift.shift_id, emp_id, manager_id)
+                schedule_id = save_schedule(shift.shift_id, emp_id, manager_id)
+                result.append({
+                    "id": schedule_id,
+                    "employee": shift.employee_name,
+                    "day": shift.day,
+                    "start_time": shift.start_time,
+                    "end_time": shift.end_time,
+                    "role": shift.required_role,
+                    "shift_id": shift.shift_id
+                })
 
     return result
 
