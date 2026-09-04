@@ -48,12 +48,6 @@ function TimeSelect({ value, onChange, input, card, theme }: { value: string, on
   const [openField, setOpenField] = useState<'h' | 'm' | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Self-healing: if this component is ever handed an empty value — on
-  // mount, after a form reset, or from any future code path — it writes
-  // its own displayed fallback (09:00) back into real state immediately.
-  // This closes the gap between what's shown and what's actually stored,
-  // so an empty string can never silently reach a submit handler again,
-  // no matter what caused the value to go empty.
   useEffect(() => {
     if (!value) {
       onChange(`${h}:${m}`)
@@ -114,6 +108,57 @@ function TimeSelect({ value, onChange, input, card, theme }: { value: string, on
   )
 }
 
+type SortKey = 'date' | 'role' | 'duration'
+type SortDir = 'asc' | 'desc'
+
+function getDurationHours(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  return (eh * 60 + em - (sh * 60 + sm)) / 60
+}
+
+function isWithinFourWeekWindow(dateStr: string): boolean {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = new Date(dateStr + 'T00:00:00')
+  const diffDays = (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  return diffDays >= -14 && diffDays <= 7
+}
+
+function buildGroupedShifts(list: Shift[], sortKey: SortKey, sortDir: SortDir, roleLabel: (r: string) => string, anyLabel: string) {
+  const filtered = sortKey === 'date' ? list : list.filter(s => isWithinFourWeekWindow(s.day))
+  const dir = sortDir === 'asc' ? 1 : -1
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0
+    if (sortKey === 'date') {
+      cmp = a.day.localeCompare(b.day)
+      if (cmp === 0) cmp = (a.role_name || '').localeCompare(b.role_name || '')
+    } else if (sortKey === 'role') {
+      cmp = (a.role_name || 'zzz').localeCompare(b.role_name || 'zzz')
+      if (cmp === 0) cmp = a.day.localeCompare(b.day)
+    } else {
+      cmp = getDurationHours(a.start_time, a.end_time) - getDurationHours(b.start_time, b.end_time)
+    }
+    return cmp * dir
+  })
+
+  const groups: { label: string, shifts: Shift[] }[] = []
+  for (const shift of sorted) {
+    const groupLabel =
+      sortKey === 'role' ? (shift.role_name ? roleLabel(shift.role_name) : anyLabel)
+      : sortKey === 'date' ? shift.day
+      : ''
+    const last = groups[groups.length - 1]
+    if (last && last.label === groupLabel) {
+      last.shifts.push(shift)
+    } else {
+      groups.push({ label: groupLabel, shifts: [shift] })
+    }
+  }
+  return groups
+}
+
 function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active?: boolean }) {
   const { t } = useTranslation()
   const roleLabel = (role: string) => t(ROLE_KEYS[role] || role)
@@ -128,7 +173,8 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
   const [editingShift, setEditingShift] = useState<Shift | null>(null)
   const [deletingShift, setDeletingShift] = useState<Shift | null>(null)
   const [deleteAssignedTo, setDeleteAssignedTo] = useState<string | null>(null)
-  const [templates, setTemplates] = useState<{id: number, day_name: string, start_time: string, end_time: string, role_id: number | null, role_name: string | null, active: boolean}[]>([])
+  const [_templates, setTemplates] = useState<{id: number, day_name: string, start_time: string, end_time: string, role_id: number | null, role_name: string | null, active: boolean}[]>([])
+  const [templates, ] = [_templates]
   const [showRecurringModal, setShowRecurringModal] = useState(false)
   const [recurringDay, setRecurringDay] = useState('Monday')
   const [recurringStart, setRecurringStart] = useState('09:00:00')
@@ -138,6 +184,10 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
   const [activeTab, setActiveTab] = useState<'all' | 'templates'>('all')
   const [recurringQuantity, setRecurringQuantity] = useState(1)
   const [loadingShifts, setLoadingShifts] = useState(true)
+  const [recurringSortKey, setRecurringSortKey] = useState<SortKey>('date')
+  const [recurringSortDir, setRecurringSortDir] = useState<SortDir>('asc')
+  const [oneTimeSortKey, setOneTimeSortKey] = useState<SortKey>('date')
+  const [oneTimeSortDir, setOneTimeSortDir] = useState<SortDir>('asc')
 
   useEffect(() => {
     apiFetch(`/shifts`)
@@ -203,8 +253,8 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
       .then(res => res.json())
       .then(newShift => {
         setShifts([...shifts, newShift])
-        setStartTime('')
-        setEndTime('')
+        setStartTime('09:00:00')
+        setEndTime('17:00:00')
         setRoleId(null)
       })
   }
@@ -452,7 +502,42 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
       {activeTab === 'all' && (
         <>
           <div className="mb-6">
-            <h2 className={`text-xs font-semibold mb-2 uppercase tracking-widest ${subtext}`}>{t('shifts.recurringShiftsSection')}</h2>
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <h2 className={`text-xs font-semibold uppercase tracking-widest ${subtext}`}>{t('shifts.recurringShiftsSection')}</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex gap-1">
+                  {(['date', 'role', 'duration'] as SortKey[]).map(k => (
+                    <button
+                      key={k}
+                      onClick={() => {
+                        if (recurringSortKey === k) setRecurringSortDir(recurringSortDir === 'asc' ? 'desc' : 'asc')
+                        else { setRecurringSortKey(k); setRecurringSortDir('asc') }
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                        recurringSortKey === k
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : theme === 'dark' ? 'border-gray-600 text-gray-300' : 'border-gray-200 text-gray-600'
+                      }`}
+                    >
+                      {k === 'date' ? t('shifts.sortDate') : k === 'role' ? t('shifts.sortRole') : t('shifts.sortDuration')}
+                      {recurringSortKey === k && (recurringSortDir === 'asc' ? ' ↑' : ' ↓')}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  className={`text-xs border rounded-lg px-2 py-1 outline-none ${input}`}
+                  value={recurringSortKey}
+                  onChange={e => { setRecurringSortKey(e.target.value as SortKey); setRecurringSortDir('asc') }}
+                >
+                  <option value="date">{t('shifts.sortDate')}</option>
+                  <option value="role">{t('shifts.sortRole')}</option>
+                  <option value="duration">{t('shifts.sortDuration')}</option>
+                </select>
+              </div>
+            </div>
+            {recurringSortKey !== 'date' && (
+              <p className={`text-xs mb-2 ${subtext}`}>{t('shifts.fourWeekWindowNote')}</p>
+            )}
             <div className={`${card} rounded-lg shadow`}>
               {shifts.filter(s => s.template_id).length === 0 && (
                 <p className={`p-4 text-sm ${subtext}`}>{t('shifts.noRecurring')}</p>
@@ -464,7 +549,12 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                   ))}
                 </div>
               )}
-              {!loadingShifts && shifts.filter(s => s.template_id).map(shift => (
+              {!loadingShifts && buildGroupedShifts(shifts.filter(s => s.template_id), recurringSortKey, recurringSortDir, roleLabel, t('shifts.any')).map((group, gi) => (
+                <div key={gi}>
+                  <div className={`px-4 py-1.5 text-xs font-semibold ${theme === 'dark' ? 'bg-gray-900 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
+                    {recurringSortKey === 'duration' ? '' : group.label}
+                  </div>
+                  {group.shifts.map(shift => (
                 <div key={shift.id} className={`p-4 border-b ${divider}`}>
                   {editingShift?.id === shift.id ? (
                     <div className="flex gap-2 items-center flex-wrap">
@@ -516,12 +606,49 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                     </div>
                   )}
                 </div>
+                  ))}
+                </div>
               ))}
             </div>
           </div>
 
           <div>
-            <h2 className={`text-xs font-semibold mb-2 uppercase tracking-widest ${subtext}`}>{t('shifts.oneTimeShiftsSection')}</h2>
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+              <h2 className={`text-xs font-semibold uppercase tracking-widest ${subtext}`}>{t('shifts.oneTimeShiftsSection')}</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex gap-1">
+                  {(['date', 'role', 'duration'] as SortKey[]).map(k => (
+                    <button
+                      key={k}
+                      onClick={() => {
+                        if (oneTimeSortKey === k) setOneTimeSortDir(oneTimeSortDir === 'asc' ? 'desc' : 'asc')
+                        else { setOneTimeSortKey(k); setOneTimeSortDir('asc') }
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                        oneTimeSortKey === k
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : theme === 'dark' ? 'border-gray-600 text-gray-300' : 'border-gray-200 text-gray-600'
+                      }`}
+                    >
+                      {k === 'date' ? t('shifts.sortDate') : k === 'role' ? t('shifts.sortRole') : t('shifts.sortDuration')}
+                      {oneTimeSortKey === k && (oneTimeSortDir === 'asc' ? ' ↑' : ' ↓')}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  className={`text-xs border rounded-lg px-2 py-1 outline-none ${input}`}
+                  value={oneTimeSortKey}
+                  onChange={e => { setOneTimeSortKey(e.target.value as SortKey); setOneTimeSortDir('asc') }}
+                >
+                  <option value="date">{t('shifts.sortDate')}</option>
+                  <option value="role">{t('shifts.sortRole')}</option>
+                  <option value="duration">{t('shifts.sortDuration')}</option>
+                </select>
+              </div>
+            </div>
+            {oneTimeSortKey !== 'date' && (
+              <p className={`text-xs mb-2 ${subtext}`}>{t('shifts.fourWeekWindowNote')}</p>
+            )}
             <div className={`${card} rounded-lg shadow`}>
               {shifts.filter(s => !s.template_id).length === 0 && (
                 <p className={`p-4 text-sm ${subtext}`}>{t('shifts.noOneTime')}</p>
@@ -533,7 +660,12 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                   ))}
                 </div>
               )}
-              {!loadingShifts && shifts.filter(s => !s.template_id).map(shift => (
+              {!loadingShifts && buildGroupedShifts(shifts.filter(s => !s.template_id), oneTimeSortKey, oneTimeSortDir, roleLabel, t('shifts.any')).map((group, gi) => (
+                <div key={gi}>
+                  <div className={`px-4 py-1.5 text-xs font-semibold ${theme === 'dark' ? 'bg-gray-900 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
+                    {oneTimeSortKey === 'duration' ? '' : group.label}
+                  </div>
+                  {group.shifts.map(shift => (
                 <div key={shift.id} className={`p-4 border-b ${divider}`}>
                   {editingShift?.id === shift.id ? (
                     <div className="flex gap-2 items-center flex-wrap">
@@ -581,6 +713,8 @@ function ShiftsPage({ theme = 'light', active = true }: { theme?: string, active
                       </button>
                     </div>
                   )}
+                </div>
+                  ))}
                 </div>
               ))}
             </div>

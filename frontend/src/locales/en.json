@@ -241,5 +241,9 @@
   "schedule.employeesUnavailable": "employees unavailable that day",
   "schedule.employeesOverHours": "employees would exceed weekly hours",
   "shifts.addRecurringShiftHint": "This creates a repeating rule for future weeks. You'll still need to click Generate Schedule for a week to actually create shifts from it.",
-  "shifts.templatesTabHint": "These are your recurring rules, not actual shifts. Run Generate Schedule on a week to create real shifts from a rule shown here."
+  "shifts.templatesTabHint": "These are your recurring rules, not actual shifts. Run Generate Schedule on a week to create real shifts from a rule shown here.",
+  "shifts.sortDate": "Date",
+  "shifts.sortRole": "Role",
+  "shifts.sortDuration": "Duration",
+  "shifts.fourWeekWindowNote": "Showing the last 2 weeks through next week only"
 }
